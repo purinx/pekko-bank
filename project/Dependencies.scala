@@ -1,0 +1,15 @@
+import sbt.*
+
+object Dependencies {
+
+  val pekkoVersion     = "1.1.5"
+  val pekkoHttpVersion = "1.2.0"
+
+  lazy val pekkos = Seq(
+    "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
+    "org.apache.pekko" %% "pekko-stream"      % pekkoVersion,
+    "org.apache.pekko" %% "pekko-http"        % pekkoHttpVersion,
+  )
+
+  lazy val munit = "org.scalameta" %% "munit" % "1.0.0"
+}
