@@ -11,6 +11,7 @@ object Dependencies {
     "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-stream"      % pekkoVersion,
     "org.apache.pekko" %% "pekko-http"        % pekkoHttpVersion,
+    "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
     "org.apache.pekko" %% "pekko-cluster-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-cluster-sharding-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-serialization-jackson" % pekkoVersion,
