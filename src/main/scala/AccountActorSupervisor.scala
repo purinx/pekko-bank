@@ -1,34 +1,29 @@
-import org.apache.pekko.actor.{Actor, ActorRef, Props}
-import org.apache.pekko.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
-
-class AccountActorSupervisor(accountRepository: AccountRepository)  extends Actor{
-  import AccountActorSupervisor.*
-  
-  protected def createAccountActor(name: String): ActorRef = 
-    context.actorOf(AccountActor.props(accountRepository), name)
-  
-
-  override def receive: Receive = {
-    case Deliver(command, to) =>
-      val accountActor = context.child(to.value)
-        .getOrElse(createAccountActor(to.value))
-
-      accountActor.forward(command)
-  }
-}
+import org.apache.pekko.actor.typed.Behavior
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.cluster.sharding.typed.scaladsl.{ClusterSharding, Entity, EntityTypeKey}
 
 object AccountActorSupervisor {
-  case class Deliver(command: AccountActor.Command, to: AccountId) extends SerializableMessage
+  sealed trait Command
+  case class Deliver(command: AccountActor.Command, to: AccountId) extends Command
 
-  def props(accountRepository: AccountRepository): Props =
-    Props(new AccountActorSupervisor(accountRepository))
+  val typeKey =
+    EntityTypeKey[AccountActor.Command]("Account")
 
-  val idExtractor: ExtractEntityId = {
-    case Deliver(msg, id) => (id.value.toString, msg)
-  }
+  def apply(accountRepository: AccountRepository): Behavior[Command] =
+    Behaviors.setup { context =>
+      val sharding = ClusterSharding(context.system)
 
-  val shardIdExtractor: ExtractShardId = {
-    case Deliver(_, id) =>
-      (Math.abs(id.value.hashCode) % 30).toString
-  }
+      sharding.init(Entity(typeKey) { entityContext =>
+        AccountActor(
+          AccountId(entityContext.entityId),
+          accountRepository,
+        )
+      })
+
+      Behaviors.receiveMessage { case Deliver(command, to) =>
+        val entityRef = sharding.entityRefFor(typeKey, to.value)
+        entityRef ! command
+        Behaviors.same
+      }
+    }
 }

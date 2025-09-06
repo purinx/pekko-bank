@@ -8,7 +8,7 @@ trait AccountRepository {
 }
 
 class InMemoryAccountRepositoryImpl(using ExecutionContext) extends AccountRepository {
-  var data: Map[AccountId, AccountInfo] = Map.empty
+  private var data: Map[AccountId, AccountInfo] = Map.empty
 
   override def findBy(accountId: AccountId): Future[Option[AccountInfo]] = Future {
     data.get(accountId)
