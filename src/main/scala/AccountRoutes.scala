@@ -19,7 +19,7 @@ class AccountRoutes(supervisor: ActorRef[AccountActorSupervisor.Command])(using 
           post {
             val result: Future[AccountActor.Event] = supervisor.ask { ref =>
               AccountActorSupervisor.Deliver(
-                AccountActor.Apply(AccountInfo(accountId, Seq(Credit(value))), ref),
+                AccountActor.Apply(Credit(value), ref),
                 accountId,
               )
             }
@@ -36,7 +36,7 @@ class AccountRoutes(supervisor: ActorRef[AccountActorSupervisor.Command])(using 
             post {
               val result: Future[AccountActor.Event] = supervisor.ask { ref =>
                 AccountActorSupervisor.Deliver(
-                  AccountActor.Apply(AccountInfo(accountId, Seq(Deposit(value))), ref),
+                  AccountActor.Apply(Deposit(value), ref),
                   accountId,
                 )
               }
