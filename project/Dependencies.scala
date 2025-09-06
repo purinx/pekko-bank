@@ -9,6 +9,7 @@ object Dependencies {
     "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-stream"      % pekkoVersion,
     "org.apache.pekko" %% "pekko-http"        % pekkoHttpVersion,
+    "ch.qos.logback"    % "logback-classic"   % "1.5.6",
   )
 
   lazy val munit = "org.scalameta" %% "munit" % "1.0.0"
