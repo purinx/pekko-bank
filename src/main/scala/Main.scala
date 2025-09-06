@@ -7,7 +7,7 @@ import scala.util.{Failure, Success}
 object Main {
   def main(args: Array[String]): Unit = {
     given ExecutionContext = scala.concurrent.ExecutionContext.global
-    lazy val repository                    = new InMemoryAccountRepositoryImpl()
+    lazy val repository    = new InMemoryAccountRepositoryImpl()
 
     given ActorSystem[AccountActorSupervisor.Command] =
       ActorSystem(

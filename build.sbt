@@ -13,6 +13,7 @@ lazy val root = project
   .settings(
     name    := "pekko-bank",
     version := "0.1.0",
+    mainClass := Some("Main"),
     commonSettings,
     libraryDependencies ++= pekkos,
     libraryDependencies += munit % Test,
