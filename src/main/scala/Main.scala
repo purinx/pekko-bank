@@ -1,4 +1,5 @@
 import org.apache.pekko
+import org.apache.pekko.http.scaladsl.Http
 import pekko.actor.typed.scaladsl.Behaviors
 import pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
 
@@ -70,6 +71,7 @@ object BankGuardian {
 
   sealed trait Command
   final case class ProcessLine(line: String)                                             extends Command
+  final case class Deliver(command: BankAccount.Command, to: String)                     extends Command
   private final case class AccountOperationResult(response: BankAccount.OperationResult) extends Command
   private final case class AccountBalanceResponse(response: BankAccount.CurrentBalance)  extends Command
 
@@ -101,6 +103,15 @@ object BankGuardian {
               println(s"無効なコマンドです: '$line'")
           }
           Behaviors.same
+        case Deliver(command, to) => {
+          val target: ActorRef[BankAccount.Command] =
+            context.child(to) match {
+              case Some(ref) => ref.unsafeUpcast[BankAccount.Command]
+              case None      => context.spawn(BankAccount(to), to)
+            }
+          target ! command
+          Behaviors.same
+        }
         case AccountOperationResult(response) =>
           response match {
             case BankAccount.OperationSucceeded(newBalance) =>
@@ -120,7 +131,13 @@ object BankGuardian {
   */
 object Main {
   def main(args: Array[String]): Unit = {
-    val system = ActorSystem(BankGuardian(), "pekko-bank")
+    val system           = ActorSystem(BankGuardian(), "pekko-bank")
+    given ActorSystem[?] = system
+
+    val httpRoutes = new AccountRoutes(system).routes
+    Http()
+      .newServerAt("0.0.0.0", 8080)
+      .bind(httpRoutes)
 
     println("\n--- Pekko銀行へようこそ ---")
     println("コマンドを入力してください:")
@@ -143,7 +160,6 @@ object Main {
       system ! BankGuardian.ProcessLine("quit")
     } else {
       // 入力ストリームが閉じた場合（Ctrl+Dなど）
-      println("\n入力が終了しましたので、シャットダウンします。")
       system.terminate()
     }
 
