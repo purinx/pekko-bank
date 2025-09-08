@@ -1,7 +1,6 @@
 import Dependencies.*
 
 ThisBuild / scalaVersion := "3.7.2"
-ThisBuild / crossScalaVersions := Seq("2.13.16", "3.3.5")
 
 lazy val options = Seq(
   "-deprecation",
