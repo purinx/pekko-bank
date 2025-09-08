@@ -1,17 +1,19 @@
-package pekko.bank.domain.account
+package bank.domain.account
 
 import java.time.Instant
 import java.util.UUID
+import bank.dto.AccountDTO
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
-/**
-  * Value Object: AccountId (UUID wrapper)
+/** Value Object: AccountId (UUID wrapper)
   */
 case class AccountId(value: UUID) {
   def asString: String = value.toString
 }
 object AccountId {
-  def newId(): AccountId = AccountId(UUID.randomUUID())
-  def from(uuid: UUID): AccountId = AccountId(uuid)
+  def newId(): AccountId                          = AccountId(UUID.randomUUID())
+  def from(uuid: UUID): AccountId                 = AccountId(uuid)
   def parse(s: String): Either[String, AccountId] = {
     try {
       Right(AccountId(UUID.fromString(s)))
@@ -21,8 +23,7 @@ object AccountId {
   }
 }
 
-/**
-  * Value Object: AccountStatus
+/** Value Object: AccountStatus
   */
 enum AccountStatus {
   case ACTIVE, FROZEN, CLOSED
@@ -30,8 +31,17 @@ enum AccountStatus {
   def isActive: Boolean = this == AccountStatus.ACTIVE
 }
 
-/**
-  * Value Object: Currency (MVP: JPY only)
+object AccountStatus {
+  def parse(status: String): Either[String, AccountStatus] = {
+    status match
+      case "ACTIVE" => Right(AccountStatus.ACTIVE)
+      case "FROZEN" => Right(AccountStatus.FROZEN)
+      case "CLOSED" => Right(AccountStatus.CLOSED)
+      case _        => Left("Unknown Status")
+  }
+}
+
+/** Value Object: Currency (MVP: JPY only)
   */
 case class Currency private (code: String) {
   override def toString: String = code
@@ -39,15 +49,13 @@ case class Currency private (code: String) {
 object Currency {
   val JPY: Currency = Currency("JPY")
 
-  def from(code: String): Either[String, Currency] = {
+  def parse(code: String): Either[String, Currency] = {
     val up = code.toUpperCase
     if (up == "JPY") Right(JPY) else Left(s"Unsupported currency: $code")
   }
 }
 
-/**
-  * Account domain model (JPY-only for MVP).
-  * Balance is derived from ledger entries, not stored here.
+/** Account domain model (JPY-only for MVP). Balance is derived from ledger entries, not stored here.
   */
 case class Account(
     id: AccountId,
@@ -55,7 +63,7 @@ case class Account(
     currency: Currency,
     status: AccountStatus,
     version: Long,
-    createdAt: Instant
+    createdAt: Instant,
 ) {
   def isActive: Boolean = status.isActive
 
@@ -74,7 +82,16 @@ object Account {
       currency = DefaultCurrency,
       status = AccountStatus.ACTIVE,
       version = 0L,
-      createdAt = Instant.now()
+      createdAt = Instant.now(),
     )
+  }
+
+  def fromDTO(dto: AccountDTO): Either[String, Account] = {
+    for {
+      id       <- AccountId.parse(dto.id)
+      currency <- Currency.parse(dto.currency)
+      status   <- AccountStatus.parse(dto.status)
+      createdAt = LocalDateTime.parse(dto.createdAt).toInstant(ZoneOffset.UTC)
+    } yield Account(id, dto.ownerName, currency, status, dto.version, createdAt)
   }
 }

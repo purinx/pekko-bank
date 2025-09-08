@@ -5,11 +5,15 @@ object Dependencies {
   val pekkoVersion     = "1.1.5"
   val pekkoHttpVersion = "1.2.0"
 
-  lazy val pekkos = Seq(
+  lazy val commonDependencies = Seq(
     "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-stream"      % pekkoVersion,
     "org.apache.pekko" %% "pekko-http"        % pekkoHttpVersion,
+    "org.typelevel"    %% "cats-core"         % "2.13.0",
+    "org.tpolecat"     %% "doobie-core"       % "1.0.0-RC8",
+    "org.tpolecat"     %% "doobie-postgres"   % "1.0.0-RC8",
     "ch.qos.logback"    % "logback-classic"   % "1.5.6",
+    "com.typesafe"      % "config"            % "1.4.4",
   )
 
   lazy val munit = "org.scalameta" %% "munit" % "1.0.0"

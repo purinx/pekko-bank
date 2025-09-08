@@ -1,3 +1,5 @@
+package bank
+
 import org.apache.pekko
 import org.apache.pekko.http.scaladsl.Http
 import pekko.actor.typed.scaladsl.Behaviors
@@ -7,6 +9,12 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.io.StdIn
 import scala.util.Try
+
+import doobie.util.transactor.Transactor
+import cats.effect.IO
+// import doobie._
+// import doobie.implicits._
+import com.typesafe.config.ConfigFactory
 
 /** 口座アクター (BankAccount Actor) (このアクターのロジックは変更ありません)
   */
@@ -127,9 +135,16 @@ object BankGuardian {
     }
 }
 
-/** アプリケーションのエントリーポイント
-  */
 object Main {
+  private lazy val config = ConfigFactory.load("application.conf")
+  lazy val dbXa           = Transactor.fromDriverManager[IO](
+    driver = config.getString("db.driver"),
+    url = config.getString("db.url"),
+    user = config.getString("db.user"),
+    password = config.getString("user.password"),
+    logHandler = None,
+  )
+
   def main(args: Array[String]): Unit = {
     val system           = ActorSystem(BankGuardian(), "pekko-bank")
     given ActorSystem[?] = system
