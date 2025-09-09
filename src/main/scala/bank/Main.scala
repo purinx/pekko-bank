@@ -12,9 +12,9 @@ import scala.util.Try
 
 import doobie.util.transactor.Transactor
 import cats.effect.IO
-// import doobie._
-// import doobie.implicits._
 import com.typesafe.config.ConfigFactory
+import bank.repository.AccountRepositoryImpl
+import bank.repository.AccountRepository
 
 /** 口座アクター (BankAccount Actor) (このアクターのロジックは変更ありません)
   */
@@ -22,9 +22,10 @@ object BankAccount {
 
   // --- BankAccountアクターが受け取るコマンド（メッセージ） ---
   sealed trait Command
-  final case class Deposit(amount: Long, replyTo: ActorRef[OperationResult])  extends Command
-  final case class Withdraw(amount: Long, replyTo: ActorRef[OperationResult]) extends Command
-  final case class GetBalance(replyTo: ActorRef[CurrentBalance])              extends Command
+  final case class Create(ownerName: String, replyTo: ActorRef[OperationResult]) extends Command
+  final case class Deposit(amount: Long, replyTo: ActorRef[OperationResult])     extends Command
+  final case class Withdraw(amount: Long, replyTo: ActorRef[OperationResult])    extends Command
+  final case class GetBalance(replyTo: ActorRef[CurrentBalance])                 extends Command
 
   // --- BankAccountアクターが返信するメッセージ ---
   sealed trait OperationResult
@@ -33,9 +34,24 @@ object BankAccount {
 
   final case class CurrentBalance(balance: Long)
 
+  private lazy val config = ConfigFactory.load("application.conf")
+  lazy val dbXa           = Transactor.fromDriverManager[IO](
+    driver = config.getString("db.driver"),
+    url = config.getString("db.url"),
+    user = config.getString("db.user"),
+    password = config.getString("user.password"),
+    logHandler = None,
+  )
+
+  given Transactor[IO] = dbXa
+
+  val accountRepository: AccountRepository = new AccountRepositoryImpl()
+
   def apply(accountId: String, balance: Long = 0L): Behavior[Command] =
     Behaviors.receive { (context, message) =>
       message match {
+        case Create(ownerName, replyTo) =>
+          accountRepository.create(ownerName)
         case Deposit(amount, replyTo) =>
           if (amount <= 0) {
             val reason = "入金額は正の数でなければなりません。"
@@ -94,6 +110,8 @@ object BankGuardian {
       Behaviors.receiveMessage {
         case ProcessLine(line) =>
           line.trim.toLowerCase.split(" ").toList match {
+            case "create" :: ownerName :: Nil =>
+              accountActor ! BankAccount.Create()
             case "deposit" :: amountStr :: Nil =>
               Try(amountStr.toLong).toOption.foreach(amount =>
                 accountActor ! BankAccount.Deposit(amount, operationResultAdapter),
@@ -136,14 +154,6 @@ object BankGuardian {
 }
 
 object Main {
-  private lazy val config = ConfigFactory.load("application.conf")
-  lazy val dbXa           = Transactor.fromDriverManager[IO](
-    driver = config.getString("db.driver"),
-    url = config.getString("db.url"),
-    user = config.getString("db.user"),
-    password = config.getString("user.password"),
-    logHandler = None,
-  )
 
   def main(args: Array[String]): Unit = {
     val system           = ActorSystem(BankGuardian(), "pekko-bank")
