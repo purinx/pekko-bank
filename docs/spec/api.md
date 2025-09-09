@@ -2,7 +2,6 @@
 
 - ベース URL: `/api/v1`
 - 認証: `Authorization: Bearer <token>`（MVP: バリデーション前提）
-- 変更系は `Idempotency-Key` 必須（最大 128 文字の ASCII）。
 - `Content-Type: application/json; charset=utf-8`
 - 金額は整数（最小単位=円）。
 
@@ -145,31 +144,7 @@ Response 201
 }
 ```
 
-### 振替シーケンス
-```mermaid
-sequenceDiagram
-  participant C as Client
-  participant API as API v1
-  participant L as Ledger Store
-
-  C->>API: POST /transfers (Idempotency-Key)
-  API->>API: Validate, AuthZ, Sanitize
-  API->>L: Begin Tx
-  API->>L: Load balances (FOR UPDATE)
-  API->>L: Ensure from.balance >= amount
-  API->>L: Insert Transaction
-  API->>L: Insert DEBIT (from)
-  API->>L: Insert CREDIT (to)
-  API->>L: Commit
-  API-->>C: 201 Created (balances)
-```
-
 ---
-
-## 冪等性ポリシー
-- 変更系（deposit/withdraw/transfer/create-account）は `Idempotency-Key` を必須化。
-- 同じキー＋同じリクエストボディは、同じ結果を 200/201 で返す。
-- 矛盾するボディで同一キーが再送された場合は 409 `idempotent_replayed`。
 
 ## ステータスコード指針
 - 200 OK: 取得 API。
@@ -182,11 +157,6 @@ sequenceDiagram
 - 422 Unprocessable Entity: 業務条件に違反。
 - 500 Internal Server Error: 予期しない障害。
 
-## ページングとソート
-- `limit`（1..200）、`cursor`（次ページトークン）でキーセットページング。
-- ソートは `postedAt desc` をデフォルト。
-
 ## 将来拡張の方向性
-- 手数料・利息・拘束（オーソリ）・予約仕訳・逆仕訳。
-- マルチ通貨、会計基準準拠の勘定科目・ダブルエントリー厳格化。
-- 二重送金防止の強化（送金ロック、分散 ID 発番、SAGA/アウトボックス）。
+- ターン制の導入
+  - 講座に対する操作をターン制にし、各ターンでシャッフルされた口座(ID)に対して操作されるようにする
