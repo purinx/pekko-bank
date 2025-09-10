@@ -61,7 +61,6 @@ object AccountRepositoryImpl extends AccountRepository {
         """.update.run
         }
         .mapError(_ => DBError)
-      done <- if (count > 0) ZIO.succeed(Done) else ZIO.fail(DBError)
-    } yield done
+    } yield Done
   }
 }
