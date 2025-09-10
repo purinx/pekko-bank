@@ -9,6 +9,7 @@ object Dependencies {
     "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
     "org.apache.pekko" %% "pekko-stream"      % pekkoVersion,
     "org.apache.pekko" %% "pekko-http"        % pekkoHttpVersion,
+    "org.apache.pekko" %% "pekko-persistence-typed" % pekkoVersion,
     "org.typelevel"    %% "cats-core"         % "2.13.0",
     "dev.zio"          %% "zio"               % "2.1.21",
     "dev.zio"          %% "zio-interop-cats"  % "23.1.0.5",
