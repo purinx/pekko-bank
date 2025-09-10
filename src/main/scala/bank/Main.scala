@@ -17,6 +17,7 @@ import bank.repository.AccountRepositoryImpl
 import bank.repository.AccountRepository
 import bank.domain.account.Account
 import bank.actor.BankGuardian
+import bank.actor.BankRoutes
 
 object Main {
   def main(args: Array[String]): Unit = {

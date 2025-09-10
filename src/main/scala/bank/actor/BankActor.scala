@@ -1,19 +1,19 @@
 package bank.actor
 
-import org.apache.pekko.actor.typed.ActorRef
+import org.apache.pekko
+import pekko.actor.typed.ActorRef
 import com.typesafe.config.ConfigFactory
 import doobie.util.transactor.Transactor
 import cats.effect.IO
-import org.apache.pekko.actor.typed.Behavior
-import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import pekko.actor.typed.Behavior
+import pekko.actor.typed.scaladsl.Behaviors
 import bank.repository.AccountRepository
 import bank.repository.AccountRepositoryImpl
 import bank.domain.account.Account
 import bank.domain.account.AccountId
 
-object BankActor {
+object Bank {
   sealed trait Command
-
   final case class CreateAccount(ownerName: String, replyTo: ActorRef[OperationResult]) extends Command
 
   sealed trait OperationResult
@@ -46,18 +46,17 @@ object BankActor {
   */
 object BankGuardian {
   sealed trait Command
-  final case class CreateAccount(ownerName: String)                         extends Command
-  final case class BankOperationResult(response: BankActor.OperationResult) extends Command
-
-  sealed trait OperationResult
+  final case class CreateAccount(ownerName: String)                extends Command
+  final case class OperationResult(response: Bank.OperationResult) extends Command
+  final case class Deliver(command: Bank.Command, to: String)      extends Command
 
   def apply(): Behavior[Command] = Behaviors.setup { context =>
-    val bankActor                                                       = context.spawn(BankActor(), "bank")
-    val bankOperationResultAdapter: ActorRef[BankActor.OperationResult] =
-      context.messageAdapter(BankOperationResult.apply(_))
+    val bankActor                                                  = context.spawn(Bank(), "bank")
+    val bankOperationResultAdapter: ActorRef[Bank.OperationResult] =
+      context.messageAdapter(OperationResult.apply(_))
 
     Behaviors.receiveMessage { case CreateAccount(ownerName) =>
-      bankActor ! BankActor.CreateAccount(ownerName, bankOperationResultAdapter)
+      bankActor ! Bank.CreateAccount(ownerName, bankOperationResultAdapter)
       Behaviors.same
     }
   }
