@@ -2,6 +2,7 @@ package bank
 
 import bank.actor.{Bank, BankGuardian}
 import org.apache.pekko.actor.typed.{ActorRef, ActorSystem}
+import org.apache.pekko.actor.typed.scaladsl.AskPattern._
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
@@ -20,7 +21,7 @@ class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?
         post {
           entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
             val result = supervisor.ask[Bank.OperationResult] { ref =>
-              BankGuardian.Deliver(BankActor.CreateAccount(ownerName, ref))
+              BankGuardian.CreateAccount(ownerName)
             }
             onSuccess(result) { case Bank.CreateAccountSucceeded(accountId) =>
               complete(StatusCodes.OK, accountId)
