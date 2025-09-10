@@ -1,21 +1,19 @@
 package bank
 
 import bank.domain.account.AccountId
+import cats.effect.IO
+import doobie.util.transactor.Transactor
 import org.apache.pekko
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
 import org.apache.pekko.http.scaladsl.Http
-import pekko.actor.typed.scaladsl.Behaviors
-import pekko.actor.typed.{ActorRef, ActorSystem, BackoffSupervisorStrategy, Behavior, Signal, TypedActorContext}
+import org.apache.pekko.persistence.typed.PersistenceId
+import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.io.StdIn
 import scala.util.Try
-import doobie.util.transactor.Transactor
-import cats.effect.IO
-import com.typesafe.config.Config
-import org.apache.pekko.actor.typed.delivery.DurableProducerQueue.State
-import org.apache.pekko.persistence.typed.{EventAdapter, PersistenceId, SnapshotAdapter, SnapshotSelectionCriteria}
-import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, Recovery, RetentionCriteria}
 // import doobie._
 // import doobie.implicits._
 import com.typesafe.config.ConfigFactory
@@ -123,9 +121,8 @@ object BankGuardian {
           val reason = s"残高が不足しています。残高: ${state.currentBalance.balance} 円, 出金額: $amount 円"
           Effect.none.thenRun(_ => replyTo ! BankAccount.OperationFailed(reason))
         } else {
-          val newBalance = state.currentBalance.balance - amount
           Effect
-            .persist(BankAccount.Withdrew(newBalance))
+            .persist(BankAccount.Withdrew(amount))
             .thenRun(state => replyTo ! BankAccount.OperationSucceeded(state.currentBalance.balance))
         }
       case BankAccount.GetBalance(replyTo) =>
@@ -138,7 +135,7 @@ object BankGuardian {
     (state, event) =>
       event match {
         case BankAccount.Deposited(amount) => state.copy(state.history :+ BankAccount.Balance(amount))
-        case BankAccount.Withdrew(amount)  => state.copy(state.history :+ BankAccount.Balance(amount))
+        case BankAccount.Withdrew(amount)  => state.copy(state.history :+ BankAccount.Balance(-amount))
         case BankAccount.GotBalance()      => state
       }
   }
