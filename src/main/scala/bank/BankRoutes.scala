@@ -24,7 +24,7 @@ class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?
               BankGuardian.CreateAccount(ownerName)
             }
             onSuccess(result) { case Bank.CreateAccountSucceeded(accountId) =>
-              complete(StatusCodes.OK, accountId)
+              complete(StatusCodes.OK, accountId.value.toString)
             }
           }
         }
