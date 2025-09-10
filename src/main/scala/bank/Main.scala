@@ -1,17 +1,21 @@
 package bank
 
+import bank.domain.account.AccountId
 import org.apache.pekko
 import org.apache.pekko.http.scaladsl.Http
 import pekko.actor.typed.scaladsl.Behaviors
-import pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
+import pekko.actor.typed.{ActorRef, ActorSystem, BackoffSupervisorStrategy, Behavior, Signal, TypedActorContext}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.io.StdIn
 import scala.util.Try
-
 import doobie.util.transactor.Transactor
 import cats.effect.IO
+import com.typesafe.config.Config
+import org.apache.pekko.actor.typed.delivery.DurableProducerQueue.State
+import org.apache.pekko.persistence.typed.{EventAdapter, PersistenceId, SnapshotAdapter, SnapshotSelectionCriteria}
+import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior, Recovery, RetentionCriteria}
 // import doobie._
 // import doobie.implicits._
 import com.typesafe.config.ConfigFactory
@@ -32,6 +36,20 @@ object BankAccount {
   final case class OperationFailed(reason: String)      extends OperationResult
 
   final case class CurrentBalance(balance: Long)
+
+  sealed trait Event
+  final case class Deposited(amount: Long) extends Event
+  final case class Withdrew(amount: Long)  extends Event
+  final case class GotBalance()            extends Event
+
+  final case class Balance(value: Long)
+  final case class BalanceState(history: List[Balance]) {
+    def currentBalance: CurrentBalance = CurrentBalance(history.map(_.value).sum)
+  }
+
+  object BalanceState {
+    def empty: BalanceState = BalanceState(Nil)
+  }
 
   def apply(accountId: String, balance: Long = 0L): Behavior[Command] =
     Behaviors.receive { (context, message) =>
@@ -82,6 +100,56 @@ object BankGuardian {
   final case class Deliver(command: BankAccount.Command, to: String)                     extends Command
   private final case class AccountOperationResult(response: BankAccount.OperationResult) extends Command
   private final case class AccountBalanceResponse(response: BankAccount.CurrentBalance)  extends Command
+
+  private val commandHandler: (
+      BankAccount.BalanceState,
+      BankAccount.Command,
+  ) => Effect[BankAccount.Event, BankAccount.BalanceState] = { (state, command) =>
+    command match
+      case BankAccount.Deposit(amount, replyTo) =>
+        if (amount <= 0) {
+          val reason = "入金額は正の数でなければなりません。"
+          Effect.none.thenRun(_ => replyTo ! BankAccount.OperationFailed(reason))
+        } else {
+          Effect
+            .persist(BankAccount.Deposited(amount))
+            .thenRun(state => replyTo ! BankAccount.OperationSucceeded(state.currentBalance.balance))
+        }
+      case BankAccount.Withdraw(amount, replyTo) =>
+        if (amount <= 0) {
+          val reason = "出金額は正の数でなければなりません。"
+          Effect.none.thenRun(_ => replyTo ! BankAccount.OperationFailed(reason))
+        } else if (state.currentBalance.balance < amount) {
+          val reason = s"残高が不足しています。残高: ${state.currentBalance.balance} 円, 出金額: $amount 円"
+          Effect.none.thenRun(_ => replyTo ! BankAccount.OperationFailed(reason))
+        } else {
+          val newBalance = state.currentBalance.balance - amount
+          Effect
+            .persist(BankAccount.Withdrew(newBalance))
+            .thenRun(state => replyTo ! BankAccount.OperationSucceeded(state.currentBalance.balance))
+        }
+      case BankAccount.GetBalance(replyTo) =>
+        Effect
+          .persist(BankAccount.GotBalance())
+          .thenRun(state => replyTo ! BankAccount.CurrentBalance(state.currentBalance.balance))
+  }
+
+  private val eventHandler: (BankAccount.BalanceState, BankAccount.Event) => BankAccount.BalanceState = {
+    (state, event) =>
+      event match {
+        case BankAccount.Deposited(amount) => state.copy(state.history :+ BankAccount.Balance(amount))
+        case BankAccount.Withdrew(amount)  => state.copy(state.history :+ BankAccount.Balance(amount))
+        case BankAccount.GotBalance()      => state
+      }
+  }
+
+  def applyEventSourcedBehavior(accountId: AccountId): Behavior[BankAccount.Command] =
+    EventSourcedBehavior[BankAccount.Command, BankAccount.Event, BankAccount.BalanceState](
+      persistenceId = PersistenceId.ofUniqueId(accountId.asString),
+      emptyState = BankAccount.BalanceState.empty,
+      commandHandler = commandHandler,
+      eventHandler = eventHandler,
+    )
 
   def apply(): Behavior[Command] =
     Behaviors.setup { context =>
