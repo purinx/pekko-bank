@@ -1,24 +1,22 @@
 package bank.util.db
 
 import zio.{Task, ZIO}
-import java.sql.Connection
+import doobie.util.transactor.Transactor
+import zio.interop.catz.*
 
-type DBIO[E, A] = ZIO[Connection, E, A]
-type DBTask[A]  = ZIO[Connection, Throwable, A]
-type DBUIO[A]   = ZIO[Connection, Nothing, A]
+type DBIO[E, A] = ZIO[Transactor[Task], E, A]
+type DBTask[A]  = ZIO[Transactor[Task], Throwable, A]
+type DBUIO[A]   = ZIO[Transactor[Task], Nothing, A]
 
 object DBIO {
 
   def withDoobie[A](io: doobie.ConnectionIO[A]): DBTask[A] = {
 
-    import zio.interop.catz.*
-    import doobie.util.transactor.Transactor
     import doobie.implicits.*
 
     for {
-      connection <- ZIO.service[Connection]
-      a          <- {
-        val xa: Transactor[Task] = Transactor.fromConnection[Task](connection, logHandler = None)
+      xa <- ZIO.service[Transactor[Task]]
+      a  <- {
         io.transact(xa)
       }
     } yield a

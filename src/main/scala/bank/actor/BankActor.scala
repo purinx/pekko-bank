@@ -11,6 +11,7 @@ import bank.repository.AccountRepository
 import bank.repository.AccountRepositoryImpl
 import bank.domain.account.Account
 import bank.domain.account.AccountId
+import zio.Task
 
 object Bank {
   sealed trait Command
@@ -21,7 +22,7 @@ object Bank {
   final case class CreateAccountFailed(reason: String)   extends OperationResult
 
   private lazy val config = ConfigFactory.load("application.conf")
-  lazy val dbXa           = Transactor.fromDriverManager[IO](
+  lazy val dbXa           = Transactor.fromDriverManager[Task](
     driver = config.getString("db.driver"),
     url = config.getString("db.url"),
     user = config.getString("db.user"),
@@ -29,14 +30,16 @@ object Bank {
     logHandler = None,
   )
 
-  given Transactor[IO] = dbXa
+  given Transactor[Task] = dbXa
 
   val accountRepository: AccountRepository = AccountRepositoryImpl
 
   def apply(): Behavior[Command] = Behaviors.receive { (context, message) =>
     message match {
       case CreateAccount(ownerName, replyTo) =>
+
         accountRepository.create(Account.create(ownerName))
+        replyTo
         Behaviors.same
     }
   }
