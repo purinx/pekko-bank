@@ -10,7 +10,7 @@ import bank.actor.{AccountActor, BankGuardian}
 
 import scala.concurrent.duration._
 
-class AccountRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?]) {
+class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?]) {
   private given Timeout = Timeout(5.seconds)
 
   lazy val routes: Route =

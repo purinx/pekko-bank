@@ -3,10 +3,8 @@ package bank.actor
 import bank.domain.account.AccountId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, ActorSystem, Behavior}
+import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.persistence.typed.PersistenceId
-
-import scala.util.Try
 
 object BankGuardian {
   sealed trait Event
@@ -15,7 +13,6 @@ object BankGuardian {
   final case class GotBalance()            extends Event
 
   sealed trait Command
-  final case class ProcessLine(line: String)                                              extends Command
   final case class Deliver(command: AccountActor.Command, to: String)                     extends Command
   private final case class AccountOperationResult(response: AccountActor.OperationResult) extends Command
   private final case class AccountBalanceResponse(response: AccountActor.CurrentBalance)  extends Command
@@ -70,32 +67,7 @@ object BankGuardian {
 
   def apply(): Behavior[Command] =
     Behaviors.setup { context =>
-      val operationResultAdapter: ActorRef[AccountActor.OperationResult] =
-        context.messageAdapter(AccountOperationResult.apply(_))
-      val balanceResponseAdapter: ActorRef[AccountActor.CurrentBalance] =
-        context.messageAdapter(AccountBalanceResponse.apply(_))
-      val accountActor = context.spawn(AccountActor("account-1234"), "account-1234")
-
       Behaviors.receiveMessage {
-        case ProcessLine(line) =>
-          line.trim.toLowerCase.split(" ").toList match {
-            case "deposit" :: amountStr :: Nil =>
-              Try(amountStr.toLong).toOption.foreach(amount =>
-                accountActor ! AccountActor.Deposit(amount, operationResultAdapter),
-              )
-            case "withdraw" :: amountStr :: Nil =>
-              Try(amountStr.toLong).toOption.foreach(amount =>
-                accountActor ! AccountActor.Withdraw(amount, operationResultAdapter),
-              )
-            case "getbalance" :: Nil =>
-              accountActor ! AccountActor.GetBalance(balanceResponseAdapter)
-            case "quit" :: Nil =>
-              println("アプリケーションを終了します。")
-              context.system.terminate()
-            case _ =>
-              println(s"無効なコマンドです: '$line'")
-          }
-          Behaviors.same
         case Deliver(command, to) => {
           val target: ActorRef[AccountActor.Command] =
             context.child(to) match {
