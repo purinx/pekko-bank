@@ -65,7 +65,7 @@ object BankGuardian {
       eventHandler = eventHandler,
     )
 
-  def apply(): Behavior[Command] =
+  def apply(): Behavior[Command] = {
     Behaviors.setup { context =>
       Behaviors.receiveMessage {
         case Deliver(command, to) => {
@@ -90,4 +90,5 @@ object BankGuardian {
           Behaviors.same
       }
     }
+  }
 }

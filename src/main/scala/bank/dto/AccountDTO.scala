@@ -1,7 +1,5 @@
 package bank.dto
 
-import java.time.Instant
-
 case class AccountDTO(
     id: String,
     ownerName: String,

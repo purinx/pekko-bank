@@ -5,15 +5,17 @@ import bank.dto.AccountDTO
 import bank.util.db.DBIO
 import zio.ZIO
 
-sealed trait AccountRepositoryError
+sealed abstract class AccountRepositoryError(cause: Throwable) extends Throwable(cause)
 
-final case class ConstructorError(message: String) extends AccountRepositoryError
+final case class ConstructorError(message: String) extends AccountRepositoryError(new RuntimeException(message))
 
-case object NotFoundError extends AccountRepositoryError
+case object NotFoundError extends AccountRepositoryError(new Error("Record Not Found"))
+
+case class DBError(e: Throwable) extends AccountRepositoryError(e)
 
 trait AccountRepository {
   def findBy(accountId: AccountId): DBIO[AccountRepositoryError, Account]
-  // def create(account: Account): Result[Done]
+  def create(account: Account): DBIO[AccountRepositoryError, Int]
   // def update(account: Account): Result[Done]
 }
 
@@ -21,6 +23,9 @@ object AccountRepositoryImpl extends AccountRepository {
 
   import doobie._
   import doobie.implicits._
+  import doobie.postgres._
+  import doobie.postgres.implicits._
+
   def findBy(accountId: AccountId): DBIO[AccountRepositoryError, Account] =
     for {
       maybeAccountDTO <- DBIO.withDoobieSucceed {
@@ -38,4 +43,21 @@ object AccountRepositoryImpl extends AccountRepository {
         .flatMap(dto => ZIO.fromEither(Account.fromDTO(dto)).mapError(message => ConstructorError(message)))
     } yield account
 
+  def create(account: Account): DBIO[AccountRepositoryError, Int] =
+    val id        = account.id.asString
+    val ownerName = account.ownerName
+    val currency  = account.currency.code
+    val status    = account.status.toString
+    val version   = account.version
+
+    for {
+      count <- DBIO
+        .withDoobie {
+          sql"""
+        insert into accounts (id, owner_name, currency, status, version)
+          values(uuid($id), $ownerName, $currency, account_status($status), $version)
+        """.update.run
+        }
+        .mapError(DBError(_))
+    } yield count
 }

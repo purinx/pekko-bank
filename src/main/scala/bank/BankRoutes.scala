@@ -9,13 +9,41 @@ import org.apache.pekko.actor.typed.scaladsl.AskPattern._
 import bank.actor.{AccountActor, BankGuardian}
 
 import scala.concurrent.duration._
+import bank.domain.account.Account
+import bank.repository.AccountRepository
+import bank.util.db.DBIORunner
+import zio.{Unsafe, Runtime}
 
-class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?]) {
+class BankRoutes(
+    supervisor: ActorRef[BankGuardian.Command],
+    accountRepository: AccountRepository,
+    dbioRunner: DBIORunner,
+)(using ActorSystem[?])
+    extends BankJsonSupport {
   private given Timeout = Timeout(5.seconds)
 
   lazy val routes: Route =
     pathPrefix("account") {
-      pathPrefix(Segment) { id =>
+      pathEnd {
+        extractExecutionContext { implicit ec =>
+          post {
+            entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
+              val account = Account.create(ownerName)
+              val io      = dbioRunner.runTx {
+                accountRepository.create(account)
+              }
+
+              val future = Unsafe.unsafe { implicit unsafe =>
+                Runtime.default.unsafe.runToFuture(io)
+              }
+
+              onSuccess(future) { _ =>
+                complete(StatusCodes.OK, account.id.value.toString)
+              }
+            }
+          }
+        }
+      } ~ pathPrefix(Segment) { id =>
         val accountId = id
         path("withdraw" / IntNumber) { value =>
           post {

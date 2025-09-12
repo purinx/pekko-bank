@@ -5,7 +5,6 @@ import java.sql.Connection
 import javax.sql.DataSource
 
 class DBIORunner(dataSource: DataSource) {
-
   private val connectionLayer: ULayer[Connection] = ZLayer.scoped {
     for {
       connection <- ZIO

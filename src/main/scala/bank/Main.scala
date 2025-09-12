@@ -7,25 +7,32 @@ import bank.actor.BankGuardian
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import com.typesafe.config.ConfigFactory
+import com.zaxxer.hikari.{HikariConfig, HikariDataSource}
+import bank.repository.AccountRepositoryImpl
+import bank.util.db.DBIORunner
 
 object Main {
-  // private lazy val config = ConfigFactory.load("application.conf")
-  // lazy val dbXa           = Transactor.fromDriverManager[IO](
-  //   driver = config.getString("db.driver"),
-  //   url = config.getString("db.url"),
-  //   user = config.getString("db.user"),
-  //   password = config.getString("user.password"),
-  //   logHandler = None,
-  // )
-
   def main(args: Array[String]): Unit = {
     val system           = ActorSystem(BankGuardian(), "pekko-bank")
     given ActorSystem[?] = system
+    val config           = ConfigFactory.load()
+    val hikariConfig     = new HikariConfig()
+    hikariConfig.setJdbcUrl(config.getString("db.url"))
+    hikariConfig.setUsername(config.getString("db.user"))
+    hikariConfig.setPassword(config.getString("db.password"))
+    hikariConfig.setDriverClassName(config.getString("db.driver"))
 
-    val httpRoutes = new BankRoutes(system).routes
+    val dataSource             = new HikariDataSource(hikariConfig)
+    val dbIORunner             = new DBIORunner(dataSource)
+    lazy val accountRepository = AccountRepositoryImpl
+
+    val httpRoutes = new BankRoutes(system, accountRepository, dbIORunner).routes
     Http()
       .newServerAt("0.0.0.0", 8080)
       .bind(httpRoutes)
+
+    println("http://localhost:8080")
 
     Runtime
       .getRuntime()
