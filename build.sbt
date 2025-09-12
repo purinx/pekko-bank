@@ -8,7 +8,6 @@ lazy val options = Seq(
   "-Wvalue-discard",
   "-Wunused:all",
   "-language:experimental.macros",
-  "-Vimplicits",
 )
 
 lazy val commonSettings = Seq(
