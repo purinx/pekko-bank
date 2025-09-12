@@ -6,6 +6,7 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.util.Timeout
 import org.apache.pekko.actor.typed.scaladsl.AskPattern._
+import bank.actor.{AccountActor, BankGuardian}
 
 import scala.concurrent.duration._
 
@@ -18,30 +19,30 @@ class AccountRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSyste
         val accountId = id
         path("withdraw" / IntNumber) { value =>
           post {
-            val result = supervisor.ask[BankAccount.OperationResult] { ref =>
-              BankGuardian.Deliver(BankAccount.Withdraw(value, ref), accountId)
+            val result = supervisor.ask[AccountActor.OperationResult] { ref =>
+              BankGuardian.Deliver(AccountActor.Withdraw(value, ref), accountId)
             }
             onSuccess(result) {
-              case BankAccount.OperationSucceeded(balance) =>
+              case AccountActor.OperationSucceeded(balance) =>
                 complete(StatusCodes.OK, s"withdraw operation succeeded: newbalance: ${balance}")
-              case BankAccount.OperationFailed(reason) =>
+              case AccountActor.OperationFailed(reason) =>
                 complete(StatusCodes.BadRequest, s"reason: ${reason}")
             }
           }
         } ~ path("deposit" / IntNumber) { value =>
-          val result = supervisor.ask[BankAccount.OperationResult] { ref =>
-            BankGuardian.Deliver(BankAccount.Deposit(value, ref), accountId)
+          val result = supervisor.ask[AccountActor.OperationResult] { ref =>
+            BankGuardian.Deliver(AccountActor.Deposit(value, ref), accountId)
           }
           onSuccess(result) {
-            case BankAccount.OperationSucceeded(balance) =>
+            case AccountActor.OperationSucceeded(balance) =>
               complete(StatusCodes.OK, s"deposit operation succeeded: newbalance: ${balance}")
-            case BankAccount.OperationFailed(reason) =>
+            case AccountActor.OperationFailed(reason) =>
               complete(StatusCodes.BadRequest, s"reason: ${reason}")
           }
         } ~ path("balance") {
           get {
-            val result = supervisor.ask[BankAccount.CurrentBalance] { ref =>
-              BankGuardian.Deliver(BankAccount.GetBalance(ref), accountId)
+            val result = supervisor.ask[AccountActor.CurrentBalance] { ref =>
+              BankGuardian.Deliver(AccountActor.GetBalance(ref), accountId)
             }
             onSuccess(result) { bal =>
               complete(StatusCodes.OK, s"balance: ${bal.balance}")
