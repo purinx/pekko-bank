@@ -3,7 +3,7 @@ package bank
 import org.apache.pekko
 import org.apache.pekko.actor.typed.ActorSystem
 import org.apache.pekko.http.scaladsl.Http
-import bank.actor.BankGuardian
+import bank.actor.AccountGuardian
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
@@ -14,7 +14,7 @@ import bank.util.db.DBIORunner
 
 object Main {
   def main(args: Array[String]): Unit = {
-    val system           = ActorSystem(BankGuardian(), "pekko-bank")
+    val system           = ActorSystem(AccountGuardian(), "pekko-bank")
     given ActorSystem[?] = system
     val config           = ConfigFactory.load()
     val hikariConfig     = new HikariConfig()
