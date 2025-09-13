@@ -30,7 +30,7 @@ object AccountActor {
   // --- AccountActor が返信するメッセージ ---
   sealed trait OperationResult
   final case class OperationSucceeded(newBalance: Long) extends OperationResult
-  final case class OperationFailed(reason: String) extends OperationResult
+  final case class OperationFailed(reason: String)      extends OperationResult
   final case class CurrentBalance(balance: Long)
 
   def apply(accountId: String, balance: Long = 0L): Behavior[Command] =
