@@ -6,18 +6,16 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.util.Timeout
 import org.apache.pekko.actor.typed.scaladsl.AskPattern._
+import bank.util.actor.FilterableAskPattern.*
+import bank.util.actor.FilterableAskPattern
 import bank.actor.{AccountActor, BankGuardian}
+import java.util.UUID
 
 import scala.concurrent.duration._
-import bank.domain.account.Account
-import bank.repository.AccountRepository
-import bank.util.db.DBIORunner
-import zio.{Unsafe, Runtime}
+import bank.actor.AccountRepositoryActor
 
 class BankRoutes(
     supervisor: ActorRef[BankGuardian.Command],
-    accountRepository: AccountRepository,
-    dbioRunner: DBIORunner,
 )(using ActorSystem[?])
     extends BankJsonSupport {
   private given Timeout = Timeout(5.seconds)
@@ -28,17 +26,17 @@ class BankRoutes(
         extractExecutionContext { implicit ec =>
           post {
             entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
-              val account = Account.create(ownerName)
-              val io      = dbioRunner.runTx {
-                accountRepository.create(account)
-              }
 
-              val future = Unsafe.unsafe { implicit unsafe =>
-                Runtime.default.unsafe.runToFuture(io)
-              }
+              val messageId = UUID.randomUUID
+              val result    = supervisor.askExpecting[AccountRepositoryActor.CreateAccountResult] { ref =>
+                BankGuardian.CreateAccount(messageId, ownerName, ref)
+              }(predicate = _.messageId == messageId)
 
-              onSuccess(future) { _ =>
-                complete(StatusCodes.OK, account.id.value.toString)
+              onSuccess(result) {
+                case AccountRepositoryActor.CreateAccountSuccess(account, _) =>
+                  complete(StatusCodes.OK, account.id.value.toString)
+                case AccountRepositoryActor.CreateAccountFailure(ownerName, errorMessage, _) =>
+                  complete(StatusCodes.BadRequest, s"create account of $ownerName failure. reason: $errorMessage")
               }
             }
           }
