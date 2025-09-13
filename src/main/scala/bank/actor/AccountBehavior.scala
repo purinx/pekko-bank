@@ -7,7 +7,7 @@ import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 
-object AccountActor {
+object AccountBehavior {
 
   // --- AccountActor が受け取るメッセージ ---
   sealed trait Command
@@ -76,7 +76,7 @@ object AccountActor {
     Behaviors.setup[Command] { context =>
       EventSourcedBehavior[Command, Event, BalanceState](
         persistenceId = PersistenceId.ofUniqueId(accountId.asString),
-        emptyState = AccountActor.BalanceState.empty,
+        emptyState = AccountBehavior.BalanceState.empty,
         commandHandler = commandHandlerWithContext(accountId, context),
         eventHandler = eventHandler,
       )
@@ -87,7 +87,7 @@ object AccountActor {
       context: ActorContext[Command],
   ): (BalanceState, Command) => Effect[Event, BalanceState] = (state, command) => {
     command match
-      case AccountActor.Deposit(amount, replyTo) =>
+      case AccountBehavior.Deposit(amount, replyTo) =>
         if (amount <= 0) {
           val reason = "入金額は正の数でなければなりません。"
           context.log.warn(s"[$accountId] 入金失敗: $amount. 理由: $reason")
@@ -95,10 +95,10 @@ object AccountActor {
         } else {
           context.log.info(s"[$accountId] $amount 円入金しました。新残高: ${state.currentBalance.balance} 円")
           Effect
-            .persist(AccountActor.Deposited(amount))
+            .persist(AccountBehavior.Deposited(amount))
             .thenRun(state => replyTo ! OperationSucceeded(state.currentBalance.balance))
         }
-      case AccountActor.Withdraw(amount, replyTo) =>
+      case AccountBehavior.Withdraw(amount, replyTo) =>
         if (amount <= 0) {
           val reason = "出金額は正の数でなければなりません。"
           context.log.warn(s"[$accountId] 出金失敗: $amount. 理由: $reason")
@@ -110,7 +110,7 @@ object AccountActor {
         } else {
           context.log.info(s"[$accountId] $amount 円出金しました。新残高: ${state.currentBalance.balance} 円")
           Effect
-            .persist(AccountActor.Withdrew(amount))
+            .persist(AccountBehavior.Withdrew(amount))
             .thenRun(state => replyTo ! OperationSucceeded(state.currentBalance.balance))
         }
       case GetBalance(replyTo) =>

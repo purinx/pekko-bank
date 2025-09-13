@@ -1,11 +1,11 @@
-import bank.actor.AccountActor.*
+import bank.actor.AccountBehavior.*
 import bank.domain.account.AccountId
 import com.typesafe.config.ConfigFactory
 import munit.FunSuite
 import org.apache.pekko.actor.testkit.typed.scaladsl.ActorTestKit
 import org.apache.pekko.persistence.testkit.scaladsl.EventSourcedBehaviorTestKit
 
-class AccountActorEventSourcedSpec extends FunSuite {
+class AccountBehaviorEventSourcedSpec extends FunSuite {
 
   private val testConfig = EventSourcedBehaviorTestKit.config.withFallback(
     ConfigFactory.parseString(
