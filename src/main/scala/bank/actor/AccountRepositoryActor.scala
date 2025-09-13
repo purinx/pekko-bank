@@ -7,15 +7,20 @@ import bank.repository.AccountRepository
 import bank.util.db.DBIORunner
 import scala.util.{Success, Failure}
 import zio.{Unsafe, Runtime}
+import java.util.UUID
 
 object AccountRepositoryActor {
 
   sealed trait Command
-  final case class CreateAccount(ownerName: String, replyTo: ActorRef[CreateAccountResult]) extends Command
+  final case class CreateAccount(messageId: UUID, ownerName: String, replyTo: ActorRef[CreateAccountResult])
+      extends Command
 
-  sealed trait CreateAccountResult
-  final case class CreateAccountSuccess(account: Account)                        extends CreateAccountResult
-  final case class CreateAccountFailure(ownerName: String, errorMessage: String) extends CreateAccountResult
+  sealed trait CreateAccountResult {
+    def messageId: UUID
+  }
+  final case class CreateAccountSuccess(account: Account, messageId: UUID) extends CreateAccountResult
+  final case class CreateAccountFailure(ownerName: String, errorMessage: String, messageId: UUID)
+      extends CreateAccountResult
   private final case class WrappedCreateAccountResult(
       result: CreateAccountResult,
       replyTo: ActorRef[CreateAccountResult],
@@ -35,9 +40,13 @@ object AccountRepositoryActor {
   ): Behavior[Command] = {
     Behaviors.receive { (context, command) =>
       command match {
-        case CreateAccount(ownerName, replyTo) =>
+        case CreateAccount(messageId, ownerName, replyTo) =>
           if (operationsInProgress == MaxOperationsInProgress) {
-            replyTo ! CreateAccountFailure(ownerName, s"Max $MaxOperationsInProgress concurrent operations supported")
+            replyTo ! CreateAccountFailure(
+              ownerName,
+              s"Max $MaxOperationsInProgress concurrent operations supported",
+              messageId,
+            )
             Behaviors.same
           } else {
 
@@ -51,8 +60,9 @@ object AccountRepositoryActor {
 
             context.pipeToSelf(futureResult) {
               // map the Future value to a message, handled by this actor
-              case Success(_) => WrappedCreateAccountResult(CreateAccountSuccess(account), replyTo)
-              case Failure(e) => WrappedCreateAccountResult(CreateAccountFailure(ownerName, e.getMessage), replyTo)
+              case Success(_) => WrappedCreateAccountResult(CreateAccountSuccess(account, messageId), replyTo)
+              case Failure(e) =>
+                WrappedCreateAccountResult(CreateAccountFailure(ownerName, e.getMessage, messageId), replyTo)
             }
             // increase operationsInProgress counter
             next(accountRepository, dbioRunner, operationsInProgress + 1)

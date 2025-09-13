@@ -6,6 +6,7 @@ import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 import org.apache.pekko.persistence.typed.PersistenceId
+import java.util.UUID
 
 object BankGuardian {
   sealed trait Event
@@ -18,8 +19,11 @@ object BankGuardian {
   private final case class AccountOperationResult(response: AccountActor.OperationResult) extends Command
   private final case class AccountBalanceResponse(response: AccountActor.CurrentBalance)  extends Command
 
-  final case class CreateAccount(ownerName: String, replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult])
-      extends Command
+  final case class CreateAccount(
+      messageId: UUID,
+      ownerName: String,
+      replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult],
+  ) extends Command
   private final case class WrappedCreateAccountResult(
       result: AccountRepositoryActor.CreateAccountResult,
       replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult],
@@ -84,8 +88,9 @@ object BankGuardian {
         context.messageAdapter(result => WrappedCreateAccountResult(result, replyTo))
 
       Behaviors.receiveMessage {
-        case CreateAccount(ownerName, replyTo) =>
+        case CreateAccount(messageId, ownerName, replyTo) =>
           accountRepositoryActor ! AccountRepositoryActor.CreateAccount(
+            messageId,
             ownerName,
             accountRepositoryResponseMapper(replyTo),
           )
