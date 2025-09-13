@@ -9,15 +9,10 @@ import org.apache.pekko.actor.typed.scaladsl.AskPattern._
 import bank.actor.{AccountActor, BankGuardian}
 
 import scala.concurrent.duration._
-import bank.domain.account.Account
-import bank.repository.AccountRepository
-import bank.util.db.DBIORunner
-import zio.{Unsafe, Runtime}
+import bank.actor.AccountRepositoryActor
 
 class BankRoutes(
     supervisor: ActorRef[BankGuardian.Command],
-    accountRepository: AccountRepository,
-    dbioRunner: DBIORunner,
 )(using ActorSystem[?])
     extends BankJsonSupport {
   private given Timeout = Timeout(5.seconds)
@@ -28,17 +23,14 @@ class BankRoutes(
         extractExecutionContext { implicit ec =>
           post {
             entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
-              val account = Account.create(ownerName)
-              val io      = dbioRunner.runTx {
-                accountRepository.create(account)
+              val result = supervisor.ask[AccountRepositoryActor.CreateAccountResult] { ref =>
+                BankGuardian.CreateAccount(ownerName, ref)
               }
-
-              val future = Unsafe.unsafe { implicit unsafe =>
-                Runtime.default.unsafe.runToFuture(io)
-              }
-
-              onSuccess(future) { _ =>
-                complete(StatusCodes.OK, account.id.value.toString)
+              onSuccess(result) {
+                case AccountRepositoryActor.CreateAccountSuccess(account) =>
+                  complete(StatusCodes.OK, account.id.value.toString)
+                case AccountRepositoryActor.CreateAccountFailure(ownerName, errorMessage) =>
+                  complete(StatusCodes.BadRequest, s"create account of $ownerName failure. reason: $errorMessage")
               }
             }
           }

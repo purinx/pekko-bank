@@ -1,6 +1,7 @@
 package bank.actor
 
 import bank.domain.account.AccountId
+import bank.actor.AccountRepositoryActor
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
@@ -16,6 +17,13 @@ object BankGuardian {
   final case class Deliver(command: AccountActor.Command, to: String)                     extends Command
   private final case class AccountOperationResult(response: AccountActor.OperationResult) extends Command
   private final case class AccountBalanceResponse(response: AccountActor.CurrentBalance)  extends Command
+
+  final case class CreateAccount(ownerName: String, replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult])
+      extends Command
+  private final case class WrappedCreateAccountResult(
+      result: AccountRepositoryActor.CreateAccountResult,
+      replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult],
+  ) extends Command
 
   private val commandHandler: (
       AccountActor.BalanceState,
@@ -65,9 +73,26 @@ object BankGuardian {
       eventHandler = eventHandler,
     )
 
-  def apply(): Behavior[Command] = {
+  def apply(accountRepositoryBehavior: Behavior[AccountRepositoryActor.Command]): Behavior[Command] = {
     Behaviors.setup { context =>
+
+      val accountRepositoryActor: ActorRef[AccountRepositoryActor.Command] =
+        context.spawn(accountRepositoryBehavior, "account-repository-behavior")
+      def accountRepositoryResponseMapper(
+          replyTo: ActorRef[AccountRepositoryActor.CreateAccountResult],
+      ): ActorRef[AccountRepositoryActor.CreateAccountResult] =
+        context.messageAdapter(result => WrappedCreateAccountResult(result, replyTo))
+
       Behaviors.receiveMessage {
+        case CreateAccount(ownerName, replyTo) =>
+          accountRepositoryActor ! AccountRepositoryActor.CreateAccount(
+            ownerName,
+            accountRepositoryResponseMapper(replyTo),
+          )
+          Behaviors.same
+        case WrappedCreateAccountResult(result, replyTo) =>
+          replyTo ! result
+          Behaviors.same
         case Deliver(command, to) => {
           val target: ActorRef[AccountActor.Command] =
             context.child(to) match {
