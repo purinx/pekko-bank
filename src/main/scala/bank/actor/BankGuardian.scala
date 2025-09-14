@@ -3,7 +3,7 @@ package bank.actor
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
 
-object AccountGuardian {
+object BankGuardian {
   sealed trait Command
   final case class Deliver(command: AccountBehavior.Command, to: String) extends Command
 
