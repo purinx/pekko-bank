@@ -33,7 +33,7 @@ erDiagram
 ```
 
 補足:
+
 - 残高は `LEDGER_ENTRY` の集計（`CREDIT - DEBIT`）。
 - `TRANSACTION (type, idempotency_key)` をユニーク化し、冪等性をDBで担保。
 - `LEDGER_ENTRY` はトリガで更新・削除を禁止（追記専用）。
-
