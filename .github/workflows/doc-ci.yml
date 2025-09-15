@@ -13,9 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2.2.2
-        with:
-          version: 10
+      - uses: pnpm/action-setup@v4
+
       - run: pnpm i --frozen-lockfile
 
       - name: format check
