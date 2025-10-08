@@ -16,6 +16,7 @@ case class DBError(e: Throwable) extends AccountRepositoryError(e)
 trait AccountRepository {
   def findBy(accountId: AccountId): DBIO[AccountRepositoryError, Account]
   def create(account: Account): DBIO[AccountRepositoryError, Int]
+  def all(): DBIO[AccountRepositoryError, List[Account]]
   // def update(account: Account): Result[Done]
 }
 
@@ -23,8 +24,7 @@ object AccountRepositoryImpl extends AccountRepository {
 
   import doobie._
   import doobie.implicits._
-  import doobie.postgres._
-  import doobie.postgres.implicits._
+  import doobie.generic.auto._
 
   def findBy(accountId: AccountId): DBIO[AccountRepositoryError, Account] =
     for {
@@ -40,10 +40,10 @@ object AccountRepositoryImpl extends AccountRepository {
       account <- ZIO
         .fromOption(maybeAccountDTO)
         .mapError(_ => NotFoundError)
-        .flatMap(dto => ZIO.fromEither(Account.fromDTO(dto)).mapError(message => ConstructorError(message)))
+        .map(Account.fromDTO(_))
     } yield account
 
-  def create(account: Account): DBIO[AccountRepositoryError, Int] =
+  def create(account: Account): DBIO[AccountRepositoryError, Int] = {
     val id        = account.id.asString
     val ownerName = account.ownerName
     val currency  = account.currency.code
@@ -54,10 +54,21 @@ object AccountRepositoryImpl extends AccountRepository {
       count <- DBIO
         .withDoobie {
           sql"""
-        insert into accounts (id, owner_name, currency, status, version)
+          insert into accounts (id, owner_name, currency, status, version)
           values(uuid($id), $ownerName, $currency, account_status($status), $version)
-        """.update.run
+          """.update.run
         }
         .mapError(DBError(_))
     } yield count
+  }
+
+  def all(): DBIO[AccountRepositoryError, List[Account]] = {
+    DBIO
+      .withDoobieSucceed {
+        sql"""
+      select (id, owner_name, currency, status, version) from accounts
+      """.query[AccountDTO].to[List]
+      }
+      .map(records => records.map(Account.fromDTO))
+  }
 }
