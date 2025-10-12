@@ -55,7 +55,7 @@ class BankRoutes(
             onSuccess(future) { accounts =>
               complete(
                 StatusCodes.OK,
-                accounts.map(ListAccountResponseItem.fromAccount(_)),
+                ListAccountResponse(accounts.map(ListAccountResponseItem.fromAccount(_))),
               )
             }
           }

@@ -25,6 +25,8 @@ object AccountRepositoryImpl extends AccountRepository {
   import doobie._
   import doobie.implicits._
   import doobie.generic.auto._
+  import doobie.postgres._
+  import doobie.postgres.implicits._
 
   def findBy(accountId: AccountId): DBIO[AccountRepositoryError, Account] =
     for {
@@ -66,8 +68,8 @@ object AccountRepositoryImpl extends AccountRepository {
     DBIO
       .withDoobieSucceed {
         sql"""
-      select (id, owner_name, currency, status, version) from accounts
-      """.query[AccountDTO].to[List]
+        select id, owner_name, currency, status, version, created_at from accounts
+        """.query[AccountDTO].to[List]
       }
       .map(records => records.map(Account.fromDTO))
   }

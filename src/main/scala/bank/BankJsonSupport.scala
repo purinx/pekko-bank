@@ -9,9 +9,11 @@ case class CreateAccountRequest(ownerName: String)
 
 case class ListAccountResponseItem(id: String, ownerName: String)
 
+case class ListAccountResponse(accounts: List[ListAccountResponseItem])
+
 object ListAccountResponseItem {
   def fromAccount(account: Account) = {
-    ListAccountResponseItem(account.id.toString, account.ownerName)
+    ListAccountResponseItem(account.id.asString, account.ownerName)
   }
 }
 
@@ -22,5 +24,9 @@ trait BankJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
 
   implicit val listAccountResponseItemFormat: RootJsonFormat[ListAccountResponseItem] = jsonFormat2(
     ListAccountResponseItem.apply,
+  )
+
+  implicit val llistAccountResponseFormat: RootJsonFormat[ListAccountResponse] = jsonFormat1(
+    ListAccountResponse.apply,
   )
 }

@@ -3,14 +3,13 @@ package bank.domain.account
 import java.time.Instant
 import java.util.UUID
 import bank.dto.AccountDTO
-import java.time.LocalDateTime
-import java.time.ZoneOffset
 
 /** Value Object: AccountId (UUID wrapper)
   */
 case class AccountId(value: UUID) {
   def asString: String = value.toString
 }
+
 object AccountId {
   def newId(): AccountId          = AccountId(UUID.randomUUID())
   def from(uuid: UUID): AccountId = AccountId(uuid)
@@ -89,7 +88,7 @@ object Account {
       Currency.parse(dto.currency),
       AccountStatus.parse(dto.status),
       dto.version,
-      LocalDateTime.parse(dto.createdAt).toInstant(ZoneOffset.UTC),
+      dto.createdAt,
     )
   }
 }
