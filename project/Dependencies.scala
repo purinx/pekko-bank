@@ -6,12 +6,17 @@ object Dependencies {
   val pekkoHttpVersion = "1.2.0"
   val hikariCpVersion  = "5.1.0"
   val postgresVersion  = "42.7.7"
+  val embeddedPostgresVersion = "2.0.4"
 
   lazy val dbDependencies = Seq(
     "org.tpolecat"  %% "doobie-core"     % "1.0.0-RC8",
     "org.tpolecat"  %% "doobie-postgres" % "1.0.0-RC8",
     "com.zaxxer"     % "HikariCP"        % hikariCpVersion,
     "org.postgresql" % "postgresql"      % postgresVersion % Runtime,
+  )
+
+  lazy val testDependencies = Seq(
+    "io.zonky.test" % "embedded-postgres" % embeddedPostgresVersion % Test,
   )
 
   lazy val commonDependencies = Seq(
@@ -29,7 +34,7 @@ object Dependencies {
     "org.tpolecat"     %% "doobie-postgres"           % "1.0.0-RC8",
     "ch.qos.logback"    % "logback-classic"           % "1.5.6",
     "com.typesafe"      % "config"                    % "1.4.4",
-  ) ++ dbDependencies
+  ) ++ dbDependencies ++ testDependencies
 
   lazy val munit = "org.scalameta" %% "munit" % "1.0.0"
 }

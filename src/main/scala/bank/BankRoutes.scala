@@ -15,9 +15,9 @@ import bank.util.db.DBIORunner
 import zio.{Unsafe, Runtime}
 
 class BankRoutes(
-                  supervisor: ActorRef[BankGuardian.Command],
-                  accountRepository: AccountRepository,
-                  dbioRunner: DBIORunner,
+    supervisor: ActorRef[BankGuardian.Command],
+    accountRepository: AccountRepository,
+    dbioRunner: DBIORunner,
 )(using ActorSystem[?])
     extends BankJsonSupport {
   private given Timeout = Timeout(5.seconds)
@@ -25,8 +25,8 @@ class BankRoutes(
   lazy val routes: Route =
     pathPrefix("account") {
       pathEnd {
-        extractExecutionContext { implicit ec =>
-          post {
+        post {
+          extractExecutionContext { implicit ec =>
             entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
               val account = Account.create(ownerName)
               val io      = dbioRunner.runTx {
@@ -40,6 +40,23 @@ class BankRoutes(
               onSuccess(future) { _ =>
                 complete(StatusCodes.OK, account.id.value.toString)
               }
+            }
+          }
+        } ~ get {
+          extractExecutionContext { implicit ec =>
+            val io = dbioRunner.runTx {
+              accountRepository.all()
+            }
+
+            val future = Unsafe.unsafe { implicit unsafe =>
+              Runtime.default.unsafe.runToFuture(io)
+            }
+
+            onSuccess(future) { accounts =>
+              complete(
+                StatusCodes.OK,
+                ListAccountResponse(accounts.map(ListAccountResponseItem.fromAccount(_))),
+              )
             }
           }
         }
