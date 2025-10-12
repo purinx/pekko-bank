@@ -34,7 +34,7 @@ object AccountRepositoryImpl extends AccountRepository {
         val id = accountId.value.toString
 
         sql"""
-          select id, owner_name,  currency, status, version, created_at from accounts where id = $id
+          select id, owner_name,  currency, status, version, created_at from accounts where id = uuid($id)
         """
           .query[AccountDTO]
           .option

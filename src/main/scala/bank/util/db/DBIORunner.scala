@@ -22,5 +22,4 @@ class DBIORunner(dataSource: DataSource) {
   def runTx[E, A](io: DBIO[E, A]): IO[E, A] = {
     io.provide(connectionLayer)
   }
-
 }
