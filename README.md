@@ -1,6 +1,17 @@
 # Pekko-Bank
 
-## Simplified accounting system implemented with actor programming
+Simplified accounting system implemented with actor programming
+
+## Technical Configuration
+
+- PostgreSQL
+- Scala 3.7.2 (sbt)
+- Pekko HTTP
+  - for the HTTP server layer
+- Pekko Typed
+  - for typed actor orchestration
+- Doobie
+  - for query execution
 
 ## Documentation
 
