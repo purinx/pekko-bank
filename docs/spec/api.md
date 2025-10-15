@@ -23,7 +23,7 @@
 
 ## 1. 口座作成
 
-- POST `/accounts`
+- POST `/account`
 
 Request
 
@@ -36,13 +36,7 @@ Request
 Response 201
 
 ```json
-{
-  "id": "a9f1c1a4-...",
-  "ownerName": "Taro Yamada",
-  "currency": "JPY",
-  "status": "ACTIVE",
-  "createdAt": "2025-01-01T00:00:00Z"
-}
+"73c4f7da-0a69-486b-b4d7-ebe9673a7c4c"
 ```
 
 ---
@@ -168,22 +162,3 @@ Response 201
   "to": { "accountId": "...", "newBalance": 45000 }
 }
 ```
-
----
-
-## ステータスコード指針
-
-- 200 OK: 取得 API。
-- 201 Created: 正常作成（取引/口座）。
-- 400 Bad Request: バリデーションエラー。
-- 401 Unauthorized: トークン不備/無効。
-- 403 Forbidden: 権限不足。
-- 404 Not Found: 口座や取引が存在しない。
-- 409 Conflict: 残高不足やバージョン競合、冪等キー衝突。
-- 422 Unprocessable Entity: 業務条件に違反。
-- 500 Internal Server Error: 予期しない障害。
-
-## 将来拡張の方向性
-
-- ターン制の導入
-  - 講座に対する操作をターン制にし、各ターンでシャッフルされた口座(ID)に対して操作されるようにする
