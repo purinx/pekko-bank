@@ -9,25 +9,21 @@ import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior
 
 object AccountBehavior {
 
-  // --- AccountActor が受け取るメッセージ ---
   sealed trait Command
   final case class Deposit(amount: Long, replyTo: ActorRef[OperationResult])  extends Command
   final case class Withdraw(amount: Long, replyTo: ActorRef[OperationResult]) extends Command
   final case class GetBalance(replyTo: ActorRef[CurrentBalance])              extends Command
 
-  // --- AccountActor が発行するメッセージ ---
   sealed trait Event
   final case class Deposited(amount: Long) extends Event
   final case class Withdrew(amount: Long)  extends Event
   final case class GotBalance()            extends Event
 
-  // --- AccountActor が保持する状態 ---
   final case class BalanceState(history: List[Balance]) {
     def currentBalance: CurrentBalance = CurrentBalance(history.map(_.value).sum)
   }
   final case class Balance(value: Long)
 
-  // --- AccountActor が返信するメッセージ ---
   sealed trait OperationResult
   final case class OperationSucceeded(newBalance: Long) extends OperationResult
   final case class OperationFailed(reason: String)      extends OperationResult

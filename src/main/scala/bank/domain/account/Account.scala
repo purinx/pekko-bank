@@ -4,8 +4,6 @@ import java.time.Instant
 import java.util.UUID
 import bank.dto.AccountDTO
 
-/** Value Object: AccountId (UUID wrapper)
-  */
 case class AccountId(value: UUID) {
   def asString: String = value.toString
 }
@@ -18,8 +16,6 @@ object AccountId {
   }
 }
 
-/** Value Object: AccountStatus
-  */
 enum AccountStatus {
   case ACTIVE, FROZEN, CLOSED
 
@@ -36,8 +32,6 @@ object AccountStatus {
   }
 }
 
-/** Value Object: Currency (MVP: JPY only)
-  */
 case class Currency private (code: String) {
   override def toString: String = code
 }
@@ -50,8 +44,6 @@ object Currency {
   }
 }
 
-/** Account domain model (JPY-only for MVP). Balance is derived from ledger entries, not stored here.
-  */
 case class Account(
     id: AccountId,
     ownerName: String,
@@ -61,15 +53,11 @@ case class Account(
     createdAt: Instant,
 ) {
   def isActive: Boolean = status.isActive
-
-  /** Posting (deposit/withdraw/transfer) allowed only when ACTIVE */
-  def canPostEntries: Boolean = isActive
 }
 
 object Account {
   val DefaultCurrency: Currency = Currency.JPY
 
-  /** Create a new ACTIVE account with zero version */
   def create(ownerName: String): Account = {
     Account(
       id = AccountId.newId(),
