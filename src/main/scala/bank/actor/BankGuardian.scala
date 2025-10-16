@@ -2,6 +2,7 @@ package bank.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import bank.domain.account.AccountId
 
 object BankGuardian {
   sealed trait Command
@@ -14,7 +15,7 @@ object BankGuardian {
           val target: ActorRef[AccountBehavior.Command] =
             context.child(to) match {
               case Some(ref) => ref.unsafeUpcast[AccountBehavior.Command]
-              case None      => context.spawn(AccountBehavior(to), to)
+              case None      => context.spawn(AccountBehavior(AccountId.parse(to)), to)
             }
           target ! command
           Behaviors.same

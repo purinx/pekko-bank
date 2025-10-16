@@ -58,9 +58,9 @@ case class Account(
 object Account {
   val DefaultCurrency: Currency = Currency.JPY
 
-  def create(ownerName: String): Account = {
+  def create(id: AccountId, ownerName: String): Account = {
     Account(
-      id = AccountId.newId(),
+      id = id,
       ownerName = ownerName,
       currency = DefaultCurrency,
       status = AccountStatus.ACTIVE,
