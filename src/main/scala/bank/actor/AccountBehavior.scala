@@ -59,13 +59,16 @@ object AccountBehavior {
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
         }
-      case Deposit(amount, replyTo) =>
+      case Deposit(amount, replyTo) => {
+        if (amount <= 0)
+          return Effect.none.thenNoReply(replyTo)(_ => OperationFailed("Amount must be positive"))
         state match {
           case CreatedState(_, balance) =>
             Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
         }
+      }
     }
   }
 
