@@ -61,7 +61,7 @@ object AccountBehavior {
         }
       case Deposit(amount, replyTo) => {
         if (amount <= 0)
-          return Effect.none.thenNoReply(replyTo)(_ => OperationFailed("Amount must be positive"))
+          return Effect.none.thenReply(replyTo)(_ => OperationFailed("Amount must be positive"))
         state match {
           case CreatedState(_, balance) =>
             Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
