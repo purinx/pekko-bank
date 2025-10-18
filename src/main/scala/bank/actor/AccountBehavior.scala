@@ -1,10 +1,12 @@
 package bank.actor
 
 import bank.domain.account.AccountId
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import bank.domain.account.Account
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.actor.typed.scaladsl.ActorContext
 
 object AccountBehavior {
   sealed trait Command
@@ -26,41 +28,45 @@ object AccountBehavior {
   case object EmptyState                                               extends State
   final case class CreatedState(account: Account, balance: BigDecimal) extends State
 
-  def apply(accountId: AccountId): Behavior[Command] = EventSourcedBehavior[Command, Event, State](
-    persistenceId = PersistenceId.ofUniqueId(accountId.asString),
-    emptyState = EmptyState,
-    commandHandler = commandHandler(accountId),
-    eventHandler = eventHandler,
-  )
+  def apply(accountId: String) = Behaviors.setup[Command] { context =>
+    EventSourcedBehavior[Command, Event, State](
+      persistenceId = PersistenceId.ofUniqueId(accountId),
+      emptyState = EmptyState,
+      commandHandler = commandHandler(accountId, context),
+      eventHandler = eventHandler,
+    )
+  }
 
-  private def commandHandler(id: AccountId): (state: State, command: Command) => Effect[Event, State] = {
-    (state, command) =>
-      command match {
-        case Create(ownerName, replyTo) =>
-          state match {
-            case CreatedState(_, _) => Effect.none.thenReply(replyTo)(_ => OperationFailed("Account already created"))
-            case EmptyState         => {
-              val account = Account.create(id, ownerName)
-              Effect.persist(Created(account)).thenReply(replyTo)(_ => AccountCreated(account))
-            }
+  private def commandHandler(
+      id: String,
+      context: ActorContext[Command],
+  ): (state: State, command: Command) => Effect[Event, State] = { (state, command) =>
+    command match {
+      case Create(ownerName, replyTo) =>
+        state match {
+          case CreatedState(_, _) => Effect.none.thenReply(replyTo)(_ => OperationFailed("Account already created"))
+          case EmptyState         => {
+            val account = Account.create(AccountId.parse(id), ownerName)
+            Effect.persist(Created(account)).thenReply(replyTo)(_ => AccountCreated(account))
           }
-        case Withdraw(amount, replyTo) =>
-          state match {
-            case CreatedState(_, balance) =>
-              Effect.persist(Withdrawn(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance + amount))
-            case EmptyState =>
-              Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
-          }
-        case Deposit(amount, replyTo) =>
-          state match {
-            case CreatedState(_, balance) =>
-              if (amount >= balance)
-                Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance - amount))
-              else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
-            case EmptyState =>
-              Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
-          }
-      }
+        }
+      case Withdraw(amount, replyTo) =>
+        state match {
+          case CreatedState(_, balance) =>
+            if (balance >= balance)
+              Effect.persist(Withdrawn(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+            else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
+          case EmptyState =>
+            Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
+        }
+      case Deposit(amount, replyTo) =>
+        state match {
+          case CreatedState(_, balance) =>
+            Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+          case EmptyState =>
+            Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
+        }
+    }
   }
 
   private val eventHandler: (State, Event) => State = { (state, event) =>

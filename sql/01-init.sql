@@ -4,7 +4,7 @@ CREATE DATABASE pekko_bank ENCODING 'UTF8';
 -- Connect to the application database
 \connect pekko_bank
 
-CREATE TABLE IF NOT EXISTS public.event_journal(
+CREATE TABLE IF NOT EXISTS event_journal(
   ordering BIGSERIAL,
   persistence_id VARCHAR(255) NOT NULL,
   sequence_number BIGINT NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.event_journal(
 
 CREATE UNIQUE INDEX event_journal_ordering_idx ON public.event_journal(ordering);
 
-CREATE TABLE IF NOT EXISTS public.event_tag(
+CREATE TABLE IF NOT EXISTS event_tag(
     event_id BIGINT,
     tag VARCHAR(256),
     PRIMARY KEY(event_id, tag),
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.event_tag(
       ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS public.snapshot (
+CREATE TABLE IF NOT EXISTS snapshot (
   persistence_id VARCHAR(255) NOT NULL,
   sequence_number BIGINT NOT NULL,
   created BIGINT NOT NULL,
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS public.snapshot (
   PRIMARY KEY(persistence_id, sequence_number)
 );
 
-CREATE TABLE IF NOT EXISTS public.durable_state (
+CREATE TABLE IF NOT EXISTS durable_state (
     global_offset BIGSERIAL,
     persistence_id VARCHAR(255) NOT NULL,
     revision BIGINT NOT NULL,
@@ -64,5 +64,5 @@ CREATE TABLE IF NOT EXISTS public.durable_state (
     state_timestamp BIGINT NOT NULL,
     PRIMARY KEY(persistence_id)
     );
-CREATE INDEX CONCURRENTLY state_tag_idx on public.durable_state (tag);
-CREATE INDEX CONCURRENTLY state_global_offset_idx on public.durable_state (global_offset);
+CREATE INDEX CONCURRENTLY state_tag_idx on durable_state (tag);
+CREATE INDEX CONCURRENTLY state_global_offset_idx on durable_state (global_offset);

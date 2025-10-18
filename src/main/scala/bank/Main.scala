@@ -7,6 +7,8 @@ import bank.actor.BankGuardian
 
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.DurationInt
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -17,16 +19,15 @@ object Main {
     Http()
       .newServerAt("0.0.0.0", 8080)
       .bind(httpRoutes)
+      .map(_.addToCoordinatedShutdown(hardTerminationDeadline = 10.seconds))
 
     println("http://localhost:8080")
 
-    Runtime
-      .getRuntime()
-      .addShutdownHook(new Thread {
-        override def run = {
-          system.terminate()
-        }
-      })
+    sys.addShutdownHook(new Thread {
+      override def run = {
+        system.terminate()
+      }
+    })
 
     // アクターシステムが完全に終了するまでメインスレッドを待機させる
     Await.result(system.whenTerminated, Duration.Inf): Unit

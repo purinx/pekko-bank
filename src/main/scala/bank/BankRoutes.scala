@@ -12,16 +12,15 @@ import scala.concurrent.duration._
 import bank.domain.account.AccountId
 
 class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?]) extends BankJsonSupport {
-  private given Timeout = Timeout(5.seconds)
+  private given Timeout = Timeout(100.seconds)
 
   lazy val routes: Route = extractExecutionContext { implicit ec =>
     pathPrefix("account") {
       pathEnd {
         post {
           entity(as[CreateAccountRequest]) { case CreateAccountRequest(ownerName) =>
-            val result = supervisor.ask[AccountBehavior.OperationResult] { ref =>
-              val accountId = AccountId.newId()
-
+            val accountId = AccountId.newId()
+            val result    = supervisor.ask[AccountBehavior.OperationResult] { ref =>
               BankGuardian.Deliver(AccountBehavior.Create(ownerName, ref), accountId.asString)
             }
 
@@ -29,27 +28,10 @@ class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?
               case AccountBehavior.AccountCreated(account) =>
                 complete(StatusCodes.OK, account.id.value.toString)
               case _ =>
-                complete(StatusCodes.BadRequest)
+                complete(StatusCodes.InternalServerError, AccountOperationFailureResponse("Unknown message from Actor"))
             }
           }
         }
-        // TODO: クエリ実装する
-        // ~ get {
-        //   val io = dbioRunner.runTx {
-        //     accountRepository.all()
-        //   }
-
-        //   val future = Unsafe.unsafe { implicit unsafe =>
-        //     Runtime.default.unsafe.runToFuture(io)
-        //   }
-
-        //   onSuccess(future) { accounts =>
-        //     complete(
-        //       StatusCodes.OK,
-        //       ListAccountResponse(accounts.map(ListAccountResponseItem.fromAccount(_))),
-        //     )
-        //   }
-        // }
       } ~ pathPrefix(Segment) { id =>
         val accountId = id
         path("withdraw" / IntNumber) { value =>
@@ -59,11 +41,11 @@ class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?
             }
             onSuccess(result) {
               case AccountBehavior.OperationSucceeded(balance) =>
-                complete(StatusCodes.OK, s"withdraw operation succeeded: newbalance: ${balance}")
+                complete(StatusCodes.OK, AccountOperationSuccessResponse(balance))
               case AccountBehavior.OperationFailed(reason) =>
-                complete(StatusCodes.BadRequest, s"reason: ${reason}")
+                complete(StatusCodes.BadRequest, AccountOperationFailureResponse(reason))
               case _ =>
-                complete(StatusCodes.BadRequest)
+                complete(StatusCodes.InternalServerError, AccountOperationFailureResponse("Unknown message from Actor"))
             }
           }
         } ~ path("deposit" / IntNumber) { value =>
@@ -72,17 +54,19 @@ class BankRoutes(supervisor: ActorRef[BankGuardian.Command])(using ActorSystem[?
           }
           onSuccess(result) {
             case AccountBehavior.OperationSucceeded(balance) =>
-              complete(StatusCodes.OK, s"deposit operation succeeded: newbalance: ${balance}")
+              complete(StatusCodes.OK, AccountOperationSuccessResponse(balance))
             case AccountBehavior.OperationFailed(reason) =>
-              complete(StatusCodes.BadRequest, s"reason: ${reason}")
+              complete(StatusCodes.BadRequest, AccountOperationFailureResponse(reason))
             case _ =>
               complete(StatusCodes.BadRequest)
           }
         }
         // TODO: クエリ実装
         // ~ path("balance") {
-        //   get {
-        //   }
+        //   get { }
+        // }
+        // ~ path("ledger") {
+        //   get { }
         // }
       }
     }

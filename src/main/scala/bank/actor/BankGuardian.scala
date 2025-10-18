@@ -15,7 +15,7 @@ object BankGuardian {
           val target: ActorRef[AccountBehavior.Command] =
             context.child(to) match {
               case Some(ref) => ref.unsafeUpcast[AccountBehavior.Command]
-              case None      => context.spawn(AccountBehavior(AccountId.parse(to)), to)
+              case None      => context.spawn(AccountBehavior(to), to)
             }
           target ! command
           Behaviors.same
