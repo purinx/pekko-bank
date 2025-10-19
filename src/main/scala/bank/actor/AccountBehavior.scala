@@ -39,7 +39,7 @@ object AccountBehavior {
 
   private def commandHandler(
       id: String,
-      context: ActorContext[Command],
+      command: ActorContext[Command],
   ): (state: State, command: Command) => Effect[Event, State] = { (state, command) =>
     command match {
       case Create(ownerName, replyTo) =>
@@ -53,18 +53,19 @@ object AccountBehavior {
       case Withdraw(amount, replyTo) =>
         state match {
           case CreatedState(_, balance) =>
-            if (balance >= balance)
+            if (amount >= balance) {
               Effect.persist(Withdrawn(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
-            else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
+            } else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
         }
       case Deposit(amount, replyTo) => {
-        if (amount <= 0)
-          return Effect.none.thenReply(replyTo)(_ => OperationFailed("Amount must be positive"))
         state match {
-          case CreatedState(_, balance) =>
-            Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+          case CreatedState(_, balance) => {
+            if (amount <= 0) {
+              Effect.none.thenReply(replyTo)(_ => OperationFailed("Amount must be positive"))
+            } else Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+          }
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
         }
