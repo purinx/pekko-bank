@@ -1,4 +1,4 @@
-# API 仕様（v1・ミニマム）
+# API 仕様
 
 - ベース URL: `/api/v1`
 - 認証: `Authorization: Bearer <token>`（MVP: バリデーション前提）

@@ -2,6 +2,7 @@ package bank.actor
 
 import org.apache.pekko.actor.typed.scaladsl.Behaviors
 import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import bank.domain.account.AccountId
 
 object BankGuardian {
   sealed trait Command

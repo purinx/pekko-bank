@@ -1,134 +1,99 @@
 package bank.actor
 
 import bank.domain.account.AccountId
-import org.apache.pekko.actor.typed.scaladsl.ActorContext
-import org.apache.pekko.actor.typed.scaladsl.Behaviors
-import org.apache.pekko.actor.typed.{ActorRef, Behavior}
+import org.apache.pekko.actor.typed.ActorRef
 import org.apache.pekko.persistence.typed.PersistenceId
 import org.apache.pekko.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
+import bank.domain.account.Account
+import org.apache.pekko.actor.typed.scaladsl.Behaviors
+import org.apache.pekko.actor.typed.scaladsl.ActorContext
 
 object AccountBehavior {
-
-  // --- AccountActor が受け取るメッセージ ---
   sealed trait Command
-  final case class Deposit(amount: Long, replyTo: ActorRef[OperationResult])  extends Command
-  final case class Withdraw(amount: Long, replyTo: ActorRef[OperationResult]) extends Command
-  final case class GetBalance(replyTo: ActorRef[CurrentBalance])              extends Command
+  final case class Create(ownerName: String, replyTo: ActorRef[OperationResult]) extends Command
+  final case class Deposit(amount: Long, replyTo: ActorRef[OperationResult])     extends Command
+  final case class Withdraw(amount: Long, replyTo: ActorRef[OperationResult])    extends Command
 
-  // --- AccountActor が発行するメッセージ ---
   sealed trait Event
-  final case class Deposited(amount: Long) extends Event
-  final case class Withdrew(amount: Long)  extends Event
-  final case class GotBalance()            extends Event
+  final case class Created(account: Account) extends Event
+  final case class Deposited(amount: Long)   extends Event
+  final case class Withdrawn(amount: Long)   extends Event
 
-  // --- AccountActor が保持する状態 ---
-  final case class BalanceState(history: List[Balance]) {
-    def currentBalance: CurrentBalance = CurrentBalance(history.map(_.value).sum)
-  }
-  final case class Balance(value: Long)
-
-  // --- AccountActor が返信するメッセージ ---
   sealed trait OperationResult
-  final case class OperationSucceeded(newBalance: Long) extends OperationResult
-  final case class OperationFailed(reason: String)      extends OperationResult
-  final case class CurrentBalance(balance: Long)
+  final case class AccountCreated(account: Account)        extends OperationResult
+  final case class OperationSucceeded(balance: BigDecimal) extends OperationResult
+  final case class OperationFailed(reason: String)         extends OperationResult
 
-  def apply(accountId: String, balance: Long = 0L): Behavior[Command] =
-    Behaviors.receive { (context, message) =>
-      message match {
-        case Deposit(amount, replyTo) =>
-          if (amount <= 0) {
-            val reason = "入金額は正の数でなければなりません。"
-            context.log.warn(s"[$accountId] 入金失敗: $amount. 理由: $reason")
-            replyTo ! OperationFailed(reason)
-            Behaviors.same
-          } else {
-            val newBalance = balance + amount
-            context.log.info(s"[$accountId] $amount 円入金しました。新残高: $newBalance 円")
-            replyTo ! OperationSucceeded(newBalance)
-            apply(accountId, newBalance)
+  sealed trait State
+  case object EmptyState                                               extends State
+  final case class CreatedState(account: Account, balance: BigDecimal) extends State
+
+  def apply(accountId: String) = Behaviors.setup[Command] { context =>
+    EventSourcedBehavior[Command, Event, State](
+      persistenceId = PersistenceId.ofUniqueId(accountId),
+      emptyState = EmptyState,
+      commandHandler = commandHandler(accountId, context),
+      eventHandler = eventHandler,
+    )
+  }
+
+  private def commandHandler(
+      id: String,
+      command: ActorContext[Command],
+  ): (state: State, command: Command) => Effect[Event, State] = { (state, command) =>
+    command match {
+      case Create(ownerName, replyTo) =>
+        state match {
+          case CreatedState(_, _) => Effect.none.thenReply(replyTo)(_ => OperationFailed("Account already created"))
+          case EmptyState         => {
+            val account = Account.create(AccountId.parse(id), ownerName)
+            Effect.persist(Created(account)).thenReply(replyTo)(_ => AccountCreated(account))
           }
-        case Withdraw(amount, replyTo) =>
-          if (amount <= 0) {
-            val reason = "出金額は正の数でなければなりません。"
-            context.log.warn(s"[$accountId] 出金失敗: $amount. 理由: $reason")
-            replyTo ! OperationFailed(reason)
-            Behaviors.same
-          } else if (balance < amount) {
-            val reason = s"残高が不足しています。残高: $balance 円, 出金額: $amount 円"
-            context.log.warn(s"[$accountId] 出金失敗: $amount. 理由: $reason")
-            replyTo ! OperationFailed(reason)
-            Behaviors.same
-          } else {
-            val newBalance = balance - amount
-            context.log.info(s"[$accountId] $amount 円出金しました。新残高: $newBalance 円")
-            replyTo ! OperationSucceeded(newBalance)
-            apply(accountId, newBalance)
+        }
+      case Withdraw(amount, replyTo) =>
+        state match {
+          case CreatedState(_, balance) =>
+            if (amount <= balance) {
+              Effect.persist(Withdrawn(amount)).thenReply(replyTo) {
+                case CreatedState(_, newBalance) => OperationSucceeded(newBalance)
+                case _                           => OperationFailed("Unexpected State")
+              }
+            } else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
+          case EmptyState =>
+            Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
+        }
+      case Deposit(amount, replyTo) => {
+        state match {
+          case CreatedState(_, balance) => {
+            if (amount <= 0) {
+              Effect.none.thenReply(replyTo)(_ => OperationFailed("Amount must be positive"))
+            } else {
+              Effect.persist(Deposited(amount)).thenReply(replyTo) {
+                case CreatedState(_, newBalance) => OperationSucceeded(newBalance)
+                case _                           => OperationFailed("Unexpected State")
+              }
+            }
           }
-        case GetBalance(replyTo) =>
-          context.log.info(s"[$accountId] 残高照会。現在の残高: $balance 円")
-          replyTo ! CurrentBalance(balance)
-          Behaviors.same
+          case EmptyState =>
+            Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
+        }
       }
     }
-
-  def applyEventSourcedBehavior(accountId: AccountId): Behavior[Command] =
-    Behaviors.setup[Command] { context =>
-      EventSourcedBehavior[Command, Event, BalanceState](
-        persistenceId = PersistenceId.ofUniqueId(accountId.asString),
-        emptyState = AccountBehavior.BalanceState.empty,
-        commandHandler = commandHandlerWithContext(accountId, context),
-        eventHandler = eventHandler,
-      )
-    }
-
-  private def commandHandlerWithContext(
-      accountId: AccountId,
-      context: ActorContext[Command],
-  ): (BalanceState, Command) => Effect[Event, BalanceState] = (state, command) => {
-    command match
-      case AccountBehavior.Deposit(amount, replyTo) =>
-        if (amount <= 0) {
-          val reason = "入金額は正の数でなければなりません。"
-          context.log.warn(s"[$accountId] 入金失敗: $amount. 理由: $reason")
-          Effect.none.thenRun(_ => replyTo ! OperationFailed(reason))
-        } else {
-          context.log.info(s"[$accountId] $amount 円入金しました。新残高: ${state.currentBalance.balance} 円")
-          Effect
-            .persist(AccountBehavior.Deposited(amount))
-            .thenRun(state => replyTo ! OperationSucceeded(state.currentBalance.balance))
-        }
-      case AccountBehavior.Withdraw(amount, replyTo) =>
-        if (amount <= 0) {
-          val reason = "出金額は正の数でなければなりません。"
-          context.log.warn(s"[$accountId] 出金失敗: $amount. 理由: $reason")
-          Effect.none.thenRun(_ => replyTo ! OperationFailed(reason))
-        } else if (state.currentBalance.balance < amount) {
-          val reason = s"残高が不足しています。残高: ${state.currentBalance.balance} 円, 出金額: $amount 円"
-          context.log.warn(s"[$accountId] 出金失敗: $amount. 理由: $reason")
-          Effect.none.thenRun(_ => replyTo ! OperationFailed(reason))
-        } else {
-          context.log.info(s"[$accountId] $amount 円出金しました。新残高: ${state.currentBalance.balance} 円")
-          Effect
-            .persist(AccountBehavior.Withdrew(amount))
-            .thenRun(state => replyTo ! OperationSucceeded(state.currentBalance.balance))
-        }
-      case GetBalance(replyTo) =>
-        context.log.info(s"[$accountId] 残高照会。現在の残高: ${state.currentBalance.balance} 円")
-        Effect
-          .persist(GotBalance())
-          .thenRun(state => replyTo ! CurrentBalance(state.currentBalance.balance))
   }
 
-  private val eventHandler: (BalanceState, Event) => BalanceState = { (state, event) =>
-    event match {
-      case Deposited(amount) => state.copy(state.history :+ Balance(amount))
-      case Withdrew(amount)  => state.copy(state.history :+ Balance(-amount))
-      case GotBalance()      => state
+  private val eventHandler: (State, Event) => State = { (state, event) =>
+    state match {
+      case CreatedState(account, balance) =>
+        event match {
+          case Deposited(amount) => CreatedState(account, balance + amount)
+          case Withdrawn(amount) => CreatedState(account, balance - amount)
+          case _                 => state
+        }
+      case EmptyState =>
+        event match {
+          case Created(account) => CreatedState(account, 0)
+          case _                => EmptyState
+        }
     }
-  }
-
-  object BalanceState {
-    def empty: BalanceState = BalanceState(Nil)
   }
 }
