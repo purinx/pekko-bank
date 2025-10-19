@@ -54,7 +54,10 @@ object AccountBehavior {
         state match {
           case CreatedState(_, balance) =>
             if (amount >= balance) {
-              Effect.persist(Withdrawn(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+              Effect.persist(Withdrawn(amount)).thenReply(replyTo) {
+                case CreatedState(_, newBalance) => OperationSucceeded(newBalance)
+                case _                           => OperationFailed("Unexpected State")
+              }
             } else Effect.none.thenReply(replyTo)(_ => OperationFailed("Insufficient balance"))
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
@@ -64,7 +67,12 @@ object AccountBehavior {
           case CreatedState(_, balance) => {
             if (amount <= 0) {
               Effect.none.thenReply(replyTo)(_ => OperationFailed("Amount must be positive"))
-            } else Effect.persist(Deposited(amount)).thenReply(replyTo)(_ => OperationSucceeded(balance))
+            } else {
+              Effect.persist(Deposited(amount)).thenReply(replyTo) {
+                case CreatedState(_, newBalance) => OperationSucceeded(newBalance)
+                case _                           => OperationFailed("Unexpected State")
+              }
+            }
           }
           case EmptyState =>
             Effect.none.thenReply(replyTo)(_ => OperationFailed("Account yet created"))
