@@ -53,7 +53,7 @@ object AccountBehavior {
       case Withdraw(amount, replyTo) =>
         state match {
           case CreatedState(_, balance) =>
-            if (amount >= balance) {
+            if (amount <= balance) {
               Effect.persist(Withdrawn(amount)).thenReply(replyTo) {
                 case CreatedState(_, newBalance) => OperationSucceeded(newBalance)
                 case _                           => OperationFailed("Unexpected State")

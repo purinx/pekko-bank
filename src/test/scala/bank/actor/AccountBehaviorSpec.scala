@@ -41,13 +41,13 @@ class AccountBehaviorSpec extends FunSuite {
 
     val firstDeposit = behaviorTestKit.runCommand[OperationResult](reply => Deposit(100, reply))
     val firstReply   = expectSucceeded(firstDeposit.reply)
-    assertEquals(firstReply.balance, BigDecimal(0))
+    assertEquals(firstReply.balance, BigDecimal(100))
     val firstState = expectCreatedState(firstDeposit.state)
     assertEquals(firstState.balance, BigDecimal(100))
 
     val secondDeposit = behaviorTestKit.runCommand[OperationResult](reply => Deposit(40, reply))
     val secondReply   = expectSucceeded(secondDeposit.reply)
-    assertEquals(secondReply.balance, BigDecimal(100))
+    assertEquals(secondReply.balance, BigDecimal(140))
     val secondState = expectCreatedState(secondDeposit.state)
     assertEquals(secondState.balance, BigDecimal(140))
   }
@@ -74,9 +74,21 @@ class AccountBehaviorSpec extends FunSuite {
 
     val withdraw = behaviorTestKit.runCommand[OperationResult](reply => Withdraw(200, reply))
     val reply    = expectSucceeded(withdraw.reply)
-    assertEquals(reply.balance, BigDecimal(200))
+    assertEquals(reply.balance, BigDecimal(0))
     val stateAfterWithdraw = expectCreatedState(withdraw.state)
     assertEquals(stateAfterWithdraw.balance, BigDecimal(0))
+  }
+
+  test("withdraw fails when amount exceeds available balance") {
+    val behaviorTestKit = behaviorKit(randomAccountId())
+    behaviorTestKit.runCommand[OperationResult](reply => Create("Eve", reply))
+    behaviorTestKit.runCommand[OperationResult](reply => Deposit(50, reply))
+
+    val withdraw = behaviorTestKit.runCommand[OperationResult](reply => Withdraw(100, reply))
+    val failed   = expectFailed(withdraw.reply)
+    assertEquals(failed.reason, "Insufficient balance")
+    val stateAfterAttempt = expectCreatedState(withdraw.state)
+    assertEquals(stateAfterAttempt.balance, BigDecimal(50))
   }
 
   private def behaviorKit(accountId: String) =
