@@ -66,3 +66,46 @@ CREATE TABLE IF NOT EXISTS durable_state (
     );
 CREATE INDEX CONCURRENTLY state_tag_idx on durable_state (tag);
 CREATE INDEX CONCURRENTLY state_global_offset_idx on durable_state (global_offset);
+
+DO $$
+BEGIN
+  CREATE TYPE transaction_type AS ENUM ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
+
+DO $$
+BEGIN
+  CREATE TYPE ledger_entry_direction AS ENUM ('CREDIT', 'DEBIT');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS account (
+  id UUID PRIMARY KEY,
+  owner_name TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+  id UUID PRIMARY KEY,
+  txn_type transaction_type NOT NULL,
+  memo TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ledger_entry (
+  id UUID PRIMARY KEY,
+  account_id UUID NOT NULL,
+  transaction_id UUID NOT NULL,
+  entry_direction ledger_entry_direction NOT NULL,
+  amount BIGINT NOT NULL CHECK (amount >= 0),
+  posted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ledger_entry_account_fk FOREIGN KEY (account_id) REFERENCES account(id),
+  CONSTRAINT ledger_entry_transaction_fk FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+
+CREATE INDEX IF NOT EXISTS ledger_entry_account_id_idx ON ledger_entry (account_id);
+CREATE INDEX IF NOT EXISTS ledger_entry_transaction_id_idx ON ledger_entry (transaction_id);
