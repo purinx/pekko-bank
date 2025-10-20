@@ -2,6 +2,7 @@ package bank.domain.account
 
 import java.time.Instant
 import java.util.UUID
+import bank.dto.AccountDTO
 
 case class AccountId(value: UUID) {
   def asString: String = value.toString
@@ -65,6 +66,17 @@ object Account {
       status = AccountStatus.ACTIVE,
       version = 0L,
       createdAt = Instant.now(),
+    )
+  }
+
+  def fromDTO(dto: AccountDTO): Account = {
+    Account(
+      AccountId.parse(dto.id),
+      dto.ownerName,
+      Currency.parse(dto.currency),
+      AccountStatus.parse(dto.status),
+      dto.version,
+      dto.createdAt,
     )
   }
 }
