@@ -83,9 +83,20 @@ EXCEPTION
 END
 $$;
 
-CREATE TABLE IF NOT EXISTS account (
+DO $$
+BEGIN
+  CREATE TYPE account_status AS ENUM ('ACTIVE', 'FROZEN', 'CLOSED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS accounts (
   id UUID PRIMARY KEY,
   owner_name TEXT NOT NULL,
+  currency TEXT NOT NULL,
+  status account_status NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -103,7 +114,7 @@ CREATE TABLE IF NOT EXISTS ledger_entry (
   entry_direction ledger_entry_direction NOT NULL,
   amount BIGINT NOT NULL CHECK (amount >= 0),
   posted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT ledger_entry_account_fk FOREIGN KEY (account_id) REFERENCES account(id),
+  CONSTRAINT ledger_entry_account_fk FOREIGN KEY (account_id) REFERENCES accounts(id),
   CONSTRAINT ledger_entry_transaction_fk FOREIGN KEY (transaction_id) REFERENCES transactions(id)
 );
 
