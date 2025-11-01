@@ -70,11 +70,10 @@ object TransactionRepositoryImpl extends TransactionRepository {
   }
 
   def create(transaction: Transaction): DBIO[TransactionRepositoryError, Unit] = {
-    val id                    = transaction.id.toString
+    val id                    = transaction.id.asString
     val txnType               = transaction.txnType.asString
     val memo                  = transaction.memo
     val createdAt             = transaction.createdAt
-    val transactionIdForEntry = transaction.id.toString
 
     val insertTransaction = DBIO
       .withDoobie {
@@ -85,30 +84,6 @@ object TransactionRepositoryImpl extends TransactionRepository {
       }
       .mapError(TransactionDBError(_))
 
-    val insertLedgerEntries = ZIO.foreachDiscard(transaction.entries) { entry =>
-      val entryId   = entry.id.toString
-      val accountId = entry.accountId.asString
-      val direction = entry.direction.asString
-      val amount    = entry.amount
-      val postedAt  = entry.postedAt
-
-      DBIO
-        .withDoobie {
-          sql"""
-            insert into ledger_entry (id, account_id, transaction_id, entry_direction, amount, posted_at)
-            values (
-              uuid($entryId),
-              uuid($accountId),
-              uuid($transactionIdForEntry),
-              $direction::ledger_entry_direction,
-              $amount,
-              $postedAt
-            )
-          """.update.run
-        }
-        .mapError(TransactionDBError(_))
-    }
-
-    insertTransaction *> insertLedgerEntries
+    insertTransaction.unit
   }
 }

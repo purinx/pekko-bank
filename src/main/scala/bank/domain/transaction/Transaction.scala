@@ -1,10 +1,20 @@
 package bank.domain.transaction
 
-import bank.domain.account.AccountId
-import bank.dto.{LedgerEntryDTO, TransactionDTO}
+import bank.dto.{DepositDTO, TransactionDTO, TransactionDetailDTO, TransferDTO, WithdrawDTO}
 
 import java.time.Instant
 import java.util.UUID
+
+final case class TransactionId(value: UUID) {
+  def asUUID: UUID    = value
+  def asString: String = value.toString
+}
+
+object TransactionId {
+  def newId(): TransactionId          = TransactionId(UUID.randomUUID())
+  def from(uuid: UUID): TransactionId = TransactionId(uuid)
+  def parse(value: String): TransactionId = TransactionId(UUID.fromString(value))
+}
 
 enum TransactionType {
   case DEPOSIT, WITHDRAWAL, TRANSFER
@@ -25,73 +35,48 @@ object TransactionType {
   }
 }
 
-enum LedgerEntryDirection {
-  case CREDIT, DEBIT
-
-  def asString: String = this match
-    case LedgerEntryDirection.CREDIT => "CREDIT"
-    case LedgerEntryDirection.DEBIT  => "DEBIT"
+sealed trait Transaction {
+  def id: TransactionId
+  def memo: Option[String]
+  def createdAt: Instant
+  def txnType: TransactionType
 }
 
-object LedgerEntryDirection {
-  def parse(value: String): LedgerEntryDirection = {
-    value.toUpperCase match
-      case "CREDIT" => LedgerEntryDirection.CREDIT
-      case "DEBIT"  => LedgerEntryDirection.DEBIT
-      case other    => throw new IllegalArgumentException(s"Unknown ledger entry direction: $other")
-  }
-}
-
-final case class LedgerEntry(
-    id: UUID,
-    accountId: AccountId,
-    transactionId: UUID,
-    direction: LedgerEntryDirection,
-    amount: Long,
-    postedAt: Instant,
-)
-
-object LedgerEntry {
-  def fromDTO(dto: LedgerEntryDTO): LedgerEntry = {
-    LedgerEntry(
-      id = UUID.fromString(dto.id),
-      accountId = AccountId.parse(dto.accountId),
-      transactionId = UUID.fromString(dto.transactionId),
-      direction = LedgerEntryDirection.parse(dto.direction),
-      amount = dto.amount,
-      postedAt = dto.postedAt,
-    )
-  }
-}
-
-final case class Transaction(
-    id: UUID,
-    txnType: TransactionType,
+final case class Deposit(
+    id: TransactionId,
     memo: Option[String],
     createdAt: Instant,
-    entries: List[LedgerEntry],
-) {
-  def withEntries(entries: List[LedgerEntry]): Transaction = copy(entries = entries)
+) extends Transaction {
+  override val txnType: TransactionType = TransactionType.DEPOSIT
+}
+
+final case class Withdraw(
+    id: TransactionId,
+    memo: Option[String],
+    createdAt: Instant,
+) extends Transaction {
+  override val txnType: TransactionType = TransactionType.WITHDRAWAL
+}
+
+final case class Transfer(
+    id: TransactionId,
+    memo: Option[String],
+    createdAt: Instant,
+) extends Transaction {
+  override val txnType: TransactionType = TransactionType.TRANSFER
 }
 
 object Transaction {
-  def fromDTO(dto: TransactionDTO): Transaction = {
-    Transaction(
-      id = UUID.fromString(dto.id),
-      txnType = TransactionType.parse(dto.txnType),
-      memo = dto.memo,
-      createdAt = dto.createdAt,
-      entries = Nil,
-    )
-  }
+  def fromDTO(dto: TransactionDTO): Transaction =
+    fromDetailDTO(TransactionDetailDTO.from(dto))
 
-  def fromDTO(dto: TransactionDTO, entryDTOs: List[LedgerEntryDTO]): Transaction = {
-    Transaction(
-      id = UUID.fromString(dto.id),
-      txnType = TransactionType.parse(dto.txnType),
-      memo = dto.memo,
-      createdAt = dto.createdAt,
-      entries = entryDTOs.map(LedgerEntry.fromDTO),
-    )
+  def fromDetailDTO(dto: TransactionDetailDTO): Transaction = {
+    dto match
+      case DepositDTO(id, memo, createdAt) =>
+        Deposit(TransactionId.parse(id), memo, createdAt)
+      case WithdrawDTO(id, memo, createdAt) =>
+        Withdraw(TransactionId.parse(id), memo, createdAt)
+      case TransferDTO(id, memo, createdAt) =>
+        Transfer(TransactionId.parse(id), memo, createdAt)
   }
 }

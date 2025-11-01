@@ -69,14 +69,6 @@ CREATE INDEX CONCURRENTLY state_global_offset_idx on durable_state (global_offse
 
 DO $$
 BEGIN
-  CREATE TYPE transaction_type AS ENUM ('DEPOSIT', 'WITHDRAWAL', 'TRANSFER');
-EXCEPTION
-  WHEN duplicate_object THEN NULL;
-END
-$$;
-
-DO $$
-BEGIN
   CREATE TYPE ledger_entry_direction AS ENUM ('CREDIT', 'DEBIT');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -100,9 +92,20 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS transactions (
+CREATE TABLE IF NOT EXISTS deposits (
   id UUID PRIMARY KEY,
-  txn_type transaction_type NOT NULL,
+  memo TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS withdraws (
+  id UUID PRIMARY KEY,
+  memo TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS transfers (
+  id UUID PRIMARY KEY,
   memo TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -110,13 +113,24 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE TABLE IF NOT EXISTS ledger_entry (
   id UUID PRIMARY KEY,
   account_id UUID NOT NULL,
-  transaction_id UUID NOT NULL,
+  deposit_id UUID,
+  withdrawal_id UUID,
+  transfer_id UUID,
   entry_direction ledger_entry_direction NOT NULL,
   amount BIGINT NOT NULL CHECK (amount >= 0),
   posted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT ledger_entry_account_fk FOREIGN KEY (account_id) REFERENCES accounts(id),
-  CONSTRAINT ledger_entry_transaction_fk FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+  CONSTRAINT ledger_entry_deposit_fk FOREIGN KEY (deposit_id) REFERENCES deposits(id),
+  CONSTRAINT ledger_entry_withdrawal_fk FOREIGN KEY (withdrawal_id) REFERENCES withdraws(id),
+  CONSTRAINT ledger_entry_transfer_fk FOREIGN KEY (transfer_id) REFERENCES transfers(id),
+  CONSTRAINT ledger_entry_single_transaction CHECK (
+    (CASE WHEN deposit_id IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN withdrawal_id IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN transfer_id IS NOT NULL THEN 1 ELSE 0 END) = 1
+  )
 );
 
 CREATE INDEX IF NOT EXISTS ledger_entry_account_id_idx ON ledger_entry (account_id);
-CREATE INDEX IF NOT EXISTS ledger_entry_transaction_id_idx ON ledger_entry (transaction_id);
+CREATE INDEX IF NOT EXISTS ledger_entry_deposit_id_idx ON ledger_entry (deposit_id);
+CREATE INDEX IF NOT EXISTS ledger_entry_withdrawal_id_idx ON ledger_entry (withdrawal_id);
+CREATE INDEX IF NOT EXISTS ledger_entry_transfer_id_idx ON ledger_entry (transfer_id);
