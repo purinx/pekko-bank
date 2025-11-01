@@ -1,4 +1,4 @@
-# ER 図（MVP）
+# ER 図
 
 ```mermaid
 erDiagram
